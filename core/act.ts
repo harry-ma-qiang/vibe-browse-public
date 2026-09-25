@@ -9,6 +9,7 @@
  */
 
 import type { AgentCommand, AxNode, CdpAxNode, CommandResult } from './types';
+import { redactNode } from './redact';
 
 interface Box {
   x: number;
@@ -59,7 +60,8 @@ async function stillIs(tabId: number, backendNodeId: number, was: AxNode): Promi
   const now = held?.nodes?.[0];
   if (!now) return false;
   if ((now.backendDOMNodeId ?? backendNodeId) !== was.backendDomNodeId) return false;
-  return (now.role?.value ?? 'unknown') === was.role;
+  if ((now.role?.value ?? 'unknown') !== was.role) return false;
+  return was.value === '[password]' || redactNode(now).name === was.name;
 }
 
 const WHEEL = {
