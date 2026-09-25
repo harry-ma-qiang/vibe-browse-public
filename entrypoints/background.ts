@@ -10,7 +10,7 @@ import type { Answer, Ask, PanelState, TabRow } from '../utils/messaging';
 import { attach, detach, isAttached, release } from '../core/attach';
 
 declare function defineBackground(main: () => void): unknown;
-import { reachable, redact, redactUrl } from '../core/redact';
+import { readable, redact, redactUrl } from '../core/redact';
 
 const KEEPALIVE_MINUTES = 1;
 
@@ -18,7 +18,7 @@ const watched = new Map<number, WatchedTab>();
 
 function watch(tab: chrome.tabs.Tab): void {
   // why: a tab nobody attached to is a page nobody asked this to read.
-  if (tab.id === undefined || !isAttached(tab.id) || !reachable(tab.url)) return;
+  if (tab.id === undefined || !isAttached(tab.id) || !readable(tab.url)) return;
   const held = watched.get(tab.id);
   watched.set(tab.id, {
     tabId: tab.id,
@@ -53,7 +53,7 @@ async function panel(): Promise<PanelState> {
   const rows = new Map<number, TabRow>();
   const here = await chrome.tabs.query({ active: true, currentWindow: true });
   for (const tab of here) {
-    if (tab.id === undefined || !reachable(tab.url)) continue;
+    if (tab.id === undefined || !readable(tab.url)) continue;
     rows.set(tab.id, {
       tabId: tab.id,
       title: redact(tab.title ?? '').text,
@@ -126,7 +126,7 @@ export default defineBackground(() => {
   chrome.tabs.onRemoved.addListener((tabId) => forget(tabId));
 
   chrome.tabs.onUpdated.addListener((tabId, changed, tab) => {
-    if (isAttached(tabId) && !reachable(tab.url)) {
+    if (isAttached(tabId) && !readable(tab.url)) {
       void detach(tabId);
       watched.delete(tabId);
       return;

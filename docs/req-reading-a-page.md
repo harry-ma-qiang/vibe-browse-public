@@ -8,13 +8,25 @@
 
 Settled by: `a_named_control_appears_in_the_interactive_tree`
 
-## A password field's value never leaves the browser
+## A named password field's value does not leave the browser
 
-**Given** a page with an input whose type is password
+**Given** a real page whose text-entry field is named like a password or a code
 **When** a tree is built from it
-**Then** the node carries the marker and not the value, whatever the value was
+**Then** the node carries the marker and not the value, and its subtree stops there
 
 Settled by: `a_password_field_carries_a_marker_and_not_a_value`
+
+Chrome sends no `inputType`, so the name and the role are the signal. A field with
+no accessible name is missed: see `docs/KNOWN-ISSUES.md`.
+
+## A site on the blocked list is never read
+
+**Given** a URL whose host is on `BLOCKED`, or a URL that will not parse
+**When** the extension is asked to attach to it, or to build a tree for it
+**Then** both are refused, and an attached tab that navigates there is detached
+
+Settled by: `a_blocked_host_is_refused_at_attach_without_touching_the_protocol`
+and `a_blocked_host_is_refused_before_any_tree_is_built`
 
 ## A pattern that is recognised is replaced, and one that is not is counted
 

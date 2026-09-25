@@ -1,5 +1,5 @@
 /**
- * What the redactor is held to, run against hand-built nodes and strings.
+ * What the redactor is held to, run against strings and against real protocol nodes.
  *
  * Every value here is obviously invented. Nothing in this file is a real address,
  * a real key or a real credential, and nothing reaches a browser or a network.
@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LONGEST, isPassword, redact, redactUrl } from '../core/redact';
+import { BLOCKED, LONGEST, blocked, isPassword, readable, redact, redactUrl } from '../core/redact';
 import type { CdpAxNode, CdpAxProperty } from '../core/types';
 
 const said = (value: string) => ({ type: 'string', value });
@@ -30,22 +30,6 @@ test('text_over_the_longest_is_dropped_not_truncated', () => {
   assert.equal(out.text, '[long]');
   assert.equal(out.replaced.long, 1);
   assert.ok(!out.text.includes('@'));
-});
-
-test('a_field_whose_input_type_is_password_is_sealed', () => {
-  assert.equal(isPassword(field('textbox', 'Password', [{ name: 'inputType', value: said('password') }])), true);
-});
-
-test('a_field_marked_by_autocomplete_is_sealed_whatever_its_type', () => {
-  const props = [
-    { name: 'inputType', value: said('text') },
-    { name: 'autocomplete', value: said('new-password') },
-  ];
-  assert.equal(isPassword(field('generic', 'Choose one', props)), true);
-});
-
-test('a_field_marked_protected_is_sealed', () => {
-  assert.equal(isPassword(field('textbox', 'Anything', [{ name: 'protected', value: said('true') }])), true);
 });
 
 test('a_node_with_no_properties_and_a_password_name_is_sealed', () => {
@@ -77,4 +61,30 @@ test('a_url_that_will_not_parse_is_dropped_whole', () => {
   const out = redactUrl('nobody@example.invalid is not a url');
   assert.equal(out.text, '[url]');
   assert.equal(out.replaced.url, 1);
+});
+
+test('a_blocked_host_and_its_subdomains_are_refused', () => {
+  for (const one of BLOCKED) {
+    assert.equal(blocked(`https://${one}/`), true, one);
+    assert.equal(blocked(`https://secure.login.${one}/in`), true, one);
+    assert.equal(readable(`https://${one}/`), false, one);
+  }
+  assert.equal(blocked('https://example.invalid/'), false);
+});
+
+test('a_host_merely_ending_in_the_letters_of_a_blocked_one_is_not_refused', () => {
+  assert.equal(blocked('https://notchase.com/'), false);
+  assert.equal(blocked('https://chase.com.example.invalid/'), false);
+});
+
+test('an_empty_or_unparseable_url_is_blocked', () => {
+  assert.equal(blocked(''), true);
+  assert.equal(blocked(undefined), true);
+  assert.equal(blocked('not a url at all'), true);
+});
+
+test('readable_wants_both_the_scheme_and_the_list', () => {
+  assert.equal(readable('https://example.invalid/page'), true);
+  assert.equal(readable('chrome://settings'), false);
+  assert.equal(readable('https://www.chase.com/account'), false);
 });

@@ -5,7 +5,7 @@
  * the asking is what separates this from a tool that reads every page you open.
  */
 
-import { reachable } from './redact';
+import { readable } from './redact';
 
 /** How long to wait after a page reports a change. The page waits too, so this is
  *  the second of two. */
@@ -42,10 +42,10 @@ export function isAttached(tabId: number): boolean {
   return attached.has(tabId);
 }
 
-/** Attach to one tab and ask its page to report changes. Refused on an unreachable page. */
+/** Attach to one tab and ask its page to report changes. Refused on a page not readable. */
 export async function attach(tabId: number, url: string | undefined): Promise<boolean> {
   if (attached.has(tabId)) return true;
-  if (!reachable(url)) return false;
+  if (!readable(url)) return false;
   try {
     await chrome.debugger.attach({ tabId }, '1.3');
     attached.add(tabId);

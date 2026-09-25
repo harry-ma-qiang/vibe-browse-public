@@ -20,7 +20,7 @@ The agent never sees the page. It sees a list of lines, each one element:
 ```
   12  button   "Sign in"
   13  textbox  "Email"
-  14  textbox  "Password"   [password]
+  14  textbox  ""           [password]
 ```
 
 It answers with `{"action":"click","nodeId":12}`.
@@ -45,13 +45,14 @@ after every action, which is what stops a ten-step task decaying step by step.
 
 | Call | Does |
 |---|---|
-| `attach(tabId, url)` | hold the protocol on one tab; refused on anything not http |
-| `read(tabId, version, nodes)` | build the tree an agent reads |
+| `attach(tabId, url)` | hold the protocol on one tab; refused on non-http and on blocked hosts |
+| `read(tabId, version, nodes, url?)` | build the tree an agent reads; refused on a blocked host |
 | `query(root, ask)` | narrow by role, text, depth, or interactive only |
 | `act(tabId, command, nodes)` | click, type, focus, scroll — by node id |
 | `group(tabIds, title, colour)` | put an errand's tabs together |
 | `redact(text)` | replace what is recognised, and count it |
 | `redactUrl(url)` | the same, plus the value of any credential-shaped parameter |
+| `readable(url)` | whether a page may be read: right scheme, and not on `BLOCKED` |
 
 Details, and the shape of every argument, are in `docs/`.
 
@@ -62,13 +63,32 @@ on this problem and the criticism was fair; it is fair here too.
 
 * **Only what you attached.** The panel offers the tab you are already looking at,
   and nothing else; your other tabs are never listed. A page you did not point it at
-  has never been read. There is no list of sites it avoids, because a list is a
-  thing you can be missing from.
-* **A password never leaves.** Not by pattern — by structure. A field is treated as
-  a password on any of four signals: an input type of `password`, an `autocomplete`
-  of `current-password` or `new-password`, a `protected` flag, or a secret-shaped
-  accessible name on a text-entry role. It yields a marker, and its whole subtree
-  stops there — including when the node itself would otherwise have been dropped.
+  has never been read.
+* **A list of sites it will not read at all.** Banks, password managers, payment
+  services, the IRS and the SSA. A subdomain of one of these is one of these. It is
+  checked in three places: before attaching, on every navigation of an attached tab
+  (which detaches it), and before a tree is built. An unparseable or empty URL is
+  treated as blocked. The list is exported as `BLOCKED` in `core/redact.ts`:
+
+  chase.com · bankofamerica.com · wellsfargo.com · citi.com · capitalone.com ·
+  usbank.com · 1password.com · lastpass.com · bitwarden.com · dashlane.com ·
+  keeper.io · nordpass.com · paypal.com · venmo.com · cash.app · zelle.com ·
+  stripe.com · irs.gov · ssa.gov
+
+  A list is a thing you can be missing from. It is a floor, not a boundary.
+* **Password fields are detected by heuristic, and the heuristic can miss.**
+  Chrome's accessibility tree carries no `inputType`, no `protected` and no
+  `autocomplete`. Measured on Chrome 153, the only properties emitted were
+  `editable focusable invalid labelledby level multiline readonly required
+  settable url`. So the primary signal is the accessible name and the role: a
+  text-entry role named like a password, a one-time code, a recovery code or an
+  API key yields a marker instead of a value, and its whole subtree stops there.
+  The property checks are kept for engines that do send them.
+
+  What this misses: a password field with no accessible name. While the field is
+  `type=password` Chrome masks the value into bullets, so nothing readable escapes;
+  if the page flips it to `type=text` the cleartext can reach the tree. See
+  `docs/KNOWN-ISSUES.md`. Do not treat this as a guarantee.
 * **http and https only**, and a URL that will not parse is refused rather than
   assumed safe.
 * **Shapes are replaced and counted**: cards, national ID, API keys, signed tokens.
@@ -85,7 +105,8 @@ on this problem and the criticism was fair; it is fair here too.
 * **The page watcher runs in an isolated world**, so a page cannot silence it or
   forge a change.
 
-Not a proof. A smaller blast radius, and an honest account of the edges.
+Not a proof. A smaller blast radius, and an honest account of the edges. What is still
+open, and not fixed, is in `docs/KNOWN-ISSUES.md`.
 
 ## What it deliberately does not do
 

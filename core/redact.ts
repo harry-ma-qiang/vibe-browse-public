@@ -32,6 +32,15 @@ export const UNREACHABLE = [
   'file://', 'view-source:', 'blob:', 'data:', 'filesystem:', 'about:',
 ];
 
+/** Sites this never reads at all: banks, password managers, payments, tax and benefits.
+ *  A subdomain of one of these is one of these. */
+export const BLOCKED = [
+  'chase.com', 'bankofamerica.com', 'wellsfargo.com', 'citi.com', 'capitalone.com',
+  'usbank.com', '1password.com', 'lastpass.com', 'bitwarden.com', 'dashlane.com',
+  'keeper.io', 'nordpass.com', 'paypal.com', 'venmo.com', 'cash.app', 'zelle.com',
+  'stripe.com', 'irs.gov', 'ssa.gov',
+];
+
 /** Whether this page may be attached to. Anything unparseable is refused. */
 export function reachable(url: string | undefined): boolean {
   if (!url) return false;
@@ -43,6 +52,22 @@ export function reachable(url: string | undefined): boolean {
     // why: a URL that will not parse is one nobody checked, so it is refused.
     return false;
   }
+}
+
+/** Whether this page is on the list never read. Nothing and nonsense are both on it. */
+export function blocked(url: string | undefined): boolean {
+  if (!url) return true;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED.some((one) => host === one || host.endsWith(`.${one}`));
+  } catch {
+    return true;
+  }
+}
+
+/** Whether a page may be read: the protocol will reach it and the list allows it. */
+export function readable(url: string | undefined): boolean {
+  return reachable(url) && !blocked(url);
 }
 
 /** One string with every recognised shape replaced, beside a count of each. */
@@ -69,7 +94,8 @@ const SEALED_NAME =
 
 const SEALED_PARAM = /token|secret|password|passwd|auth|session|sig|signature|code|key|otp|nonce/i;
 
-/** Whether a node holds a secret, judged on several signals and failing closed. */
+/** Whether a node looks like it holds a secret. A heuristic: it can miss. The first
+ *  two signals are properties Chrome does not send, kept for engines that do. */
 export function isPassword(node: CdpAxNode): boolean {
   for (const p of node.properties ?? []) {
     const said = String(p.value?.value ?? '');

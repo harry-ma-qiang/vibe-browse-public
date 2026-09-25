@@ -6,7 +6,7 @@
  */
 
 import type { AxNode, CdpAxNode, Snapshot } from './types';
-import { isPassword, redactNode } from './redact';
+import { isPassword, readable, redactNode } from './redact';
 
 /** Roles that describe layout rather than anything a reader could act on. */
 export const NOISE = new Set(['none', 'presentation', 'LineBreak', 'InlineTextBox', 'generic']);
@@ -74,8 +74,14 @@ function gather(ids: string[], held: Building): AxNode[] {
   return out;
 }
 
-/** One tree as an agent reads it, built from the nodes the protocol sent. */
-export function read(tabId: number, version: number, nodes: CdpAxNode[]): Snapshot {
+const EMPTY: AxNode = { id: 0, role: 'empty', name: '', value: '', description: '',
+                        level: null, backendDomNodeId: null, children: [] };
+
+/** One tree as an agent reads it. A page on the blocked list is refused, not built. */
+export function read(tabId: number, version: number, nodes: CdpAxNode[], url?: string): Snapshot {
+  if (url !== undefined && !readable(url)) {
+    return { tabId, version, root: { ...EMPTY, role: 'refused' }, replaced: { blocked: 1 }, builtAt: Date.now() };
+  }
   let seq = 0;
   const held: Building = {
     by: new Map(nodes.map((node) => [node.nodeId, node])),
@@ -87,8 +93,7 @@ export function read(tabId: number, version: number, nodes: CdpAxNode[]): Snapsh
   return {
     tabId,
     version,
-    root: root ?? { id: 0, role: 'empty', name: '', value: '', description: '',
-                    level: null, backendDomNodeId: null, children: [] },
+    root: root ?? { ...EMPTY },
     replaced: held.replaced,
     builtAt: Date.now(),
   };
