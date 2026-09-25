@@ -48,10 +48,13 @@ test('a_password_field_carries_a_marker_and_not_a_value', () => {
   assert.ok(!JSON.stringify(snapshot).includes(MASKED));
 });
 
-test('a_revealed_password_does_not_reach_a_built_snapshot', () => {
+test('a_revealed_named_password_is_caught_by_the_name_alone', () => {
   assert.ok(JSON.stringify(AFTER).includes(CLEARTEXT), 'the dump must carry the cleartext');
   const snapshot = read(1, 1, AFTER);
+  assert.equal(byBackend(snapshot.root, 23)?.value, '[password]');
   assert.ok(!JSON.stringify(snapshot).includes(CLEARTEXT));
+  // why: the unnamed field beside it is why the document is asked at all.
+  assert.notEqual(byBackend(snapshot.root, 27)?.value, '[password]');
 });
 
 test('the_one_time_code_and_the_recovery_code_are_sealed', () => {

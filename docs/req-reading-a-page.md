@@ -24,10 +24,15 @@ with no accessible name is reached by the document instead: see
 
 **Given** a URL whose host is on `BLOCKED`, or a URL that will not parse
 **When** the extension is asked to attach to it, or to build a tree for it
-**Then** both are refused, and an attached tab that navigates there is detached
+**Then** both are refused
 
 Settled by: `a_blocked_host_is_refused_at_attach_without_touching_the_protocol`
 and `a_blocked_host_is_refused_before_any_tree_is_built`
+
+An attached tab that navigates onto the list is also detached, in the `onUpdated`
+listener at `entrypoints/background.ts:101-106`. Nothing settles that: no test in
+`tests/` reaches a listener registered inside `defineBackground`. It has been driven by
+hand only, as part of `docs/test-driving-the-bridge-end-to-end.md`.
 
 ## A pattern that is recognised is replaced, and one that is not is counted
 
@@ -37,10 +42,19 @@ and `a_blocked_host_is_refused_before_any_tree_is_built`
 
 Settled by: `a_recognised_pattern_is_replaced_and_counted`
 
-## A tree that no longer describes the page says so
+## A tree that no longer describes the page is built again
 
-**Given** a tree already read by an agent
+**Given** a tree already built for a tab, which `query` and `act` are answered from
 **When** the page changes underneath it
-**Then** the next read carries a higher version, and the old tree is not silently reused
+**Then** the next call fetches the page again rather than answering from the old tree,
+and the snapshot it returns carries a higher version
 
-Settled by: `a_changed_page_raises_the_version`
+Settled by: `a_changed_page_is_rebuilt_and_the_old_tree_is_not_reused`, which counts the
+fetches, and `a_tree_still_describing_its_page_is_handed_back_without_a_second_fetch`,
+which holds the other half: an unchanged page is not re-read.
+`a_changed_page_raises_the_version` settles something smaller, and is kept for it:
+that `read()` carries out the version it was given.
+
+There is one staleness and not two. `core/watched.ts` keeps it; the background writes
+it on navigation and on the page's own change binding, and `standing()` in
+`core/bridge.ts` reads it before handing out a tree it built earlier.

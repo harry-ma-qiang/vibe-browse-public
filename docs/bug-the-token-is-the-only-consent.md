@@ -7,9 +7,15 @@ can drive every attached tab. There is no per-command confirmation and no record
 what was done. Attaching a tab is the only consent, and it is given once, for the
 whole session.
 
-The token file is mode 0600, and both listeners bind `127.0.0.1` only, so this is a
-local trust boundary. It is not a sandbox: anything that can read the home directory
-is inside it.
+The token file is mode 0600, and both listeners bind `127.0.0.1` only and want the same
+token, so this is a local trust boundary. It is not a sandbox: anything that can read
+the home directory is inside it.
+
+The websocket once wanted no token at all, which meant any local process could connect
+as the extension, be handed every value an agent typed, and answer with a tree it had
+made up. That is closed: the handshake wants `bearer.<token>`, refuses a page origin,
+and refuses a second extension rather than displacing the first. Holding the token is
+still holding the browser, which is what this record is about.
 
 ## What should happen
 

@@ -55,18 +55,51 @@ after every action, which is what stops a ten-step task decaying step by step.
 | `redactUrl(url)` | the same, plus the value of any credential-shaped parameter |
 | `readable(url)` | whether a page may be read: right scheme, and not on `BLOCKED` |
 
-Details, and the shape of every argument, are in `docs/`. An agent reaches all of it
-from outside the browser through `bridge/server.py`, whose commands are listed in
-`bridge/SKILL.md`.
+What each call is required to do is written as `req` records in `docs/`. The shape of
+every argument an agent sends, and of every reply, is in `bridge/SKILL.md`. An agent
+reaches all of it from outside the browser through `bridge/server.py`.
+
+## The bridge, and the secret both ends want
+
+`bridge/server.py` makes a token on first run and keeps it at `~/.vibe-browse-token`,
+mode 0600. An agent sends it as `Authorization: Bearer <token>` over HTTP. The
+extension sends the same token as the websocket subprotocol `bearer.<token>`, because
+a browser cannot put a header on a websocket. A handshake without it is refused with
+401, and a second extension with 409 rather than being allowed to displace the first.
+
+The two listeners treat `Origin` differently, on purpose. Nothing that speaks HTTP to
+the bridge is a browser, so any `Origin` there is refused with 403. A websocket is the
+opposite: a browser has to send one, and the extension's own
+`chrome-extension://<id>` arrives on every dial, so refusing all of them would refuse
+the extension. What is refused there is a **page** origin — anything that is not
+`chrome-extension://`, `moz-extension://` or `safari-web-extension://` — which is what
+a web page reaching for `ws://127.0.0.1:8765` would carry.
+
+You give the extension the token once, by hand. There is no settings screen: open
+`chrome://extensions`, find vibe-browse, click **service worker**, and in the console
+that opens run
+
+```js
+chrome.storage.local.set({ bridgeToken: 'paste the contents of ~/.vibe-browse-token' })
+```
+
+Until a token is stored the side panel stays on `bridge offline` and the extension
+does not dial at all. It picks the token up within a second of being set; there is no
+need to reload it. Replacing the token file means pasting the new value the same way.
 
 ## What it does about the obvious danger
 
 It holds a debugger on a browser you are signed into. Meta shipped Muse with a team
 on this problem and the criticism was fair; it is fair here too.
 
-* **Only what you attached.** The panel offers the tab you are already looking at,
-  and nothing else; your other tabs are never listed. A page you did not point it at
-  has never been read.
+* **The panel attaches one tab at a time, and the bridge can attach any tab.** The
+  panel offers the tab you are already looking at, and nothing else. That is the limit
+  on what *you* can attach by clicking; it is not a limit on the extension. Whoever
+  holds the bridge token can send `{"action":"attach","tabId":N}` for any tab id, and
+  a `snapshot` sent with no `tabId` attaches the active tab without being asked
+  (`core/bridge.ts`, `tabOf` and `build`). So the true boundary is the token and the
+  blocked list, not the panel. Stop the bridge when an agent is not using it; see
+  `docs/bug-the-token-is-the-only-consent.md`.
 * **A list of sites it will not read at all.** Banks, password managers, payment
   services, the IRS and the SSA. A subdomain of one of these is one of these. It is
   checked in three places: before attaching, on every navigation of an attached tab
@@ -88,15 +121,20 @@ on this problem and the criticism was fair; it is fair here too.
 
   A field counts as sensitive on `type=password`, on a computed
   `-webkit-text-security` other than `none`, on an `autocomplete` naming a password
-  or a one-time code, or on a `name` or `id` that reads like one. The probe runs in
-  the isolated world, so the page cannot rewrite `getComputedStyle` under it. The
+  or a one-time code, or on a `name` or `id` that reads like one. The name is matched
+  a whole word at a time, splitting on `-`, `_`, digits and camelCase, so `password`
+  and `cvv2` seal and `shipping`, `passenger` and `tokenizer` do not. The probe runs
+  in the isolated world, so the page cannot rewrite `getComputedStyle` under it. The
   set is sticky while the tab is attached: a field revealed by a "Show password"
   toggle stays sealed. The accessible-name heuristic still runs underneath it.
 
-  What this misses: a closed shadow root, a cross-origin iframe, and a secret
-  rendered as plain text with no input element. If the lookup fails the snapshot is
-  still built, from the name heuristic alone, and says so with `degraded: true`. See
-  `docs/bug-a-secret-with-no-input-element.md`. Do not treat this as a guarantee.
+  The probe walks **open** shadow roots, recursing through every `shadowRoot` it can
+  reach and resolving each match back to a `backendDOMNodeId`. What this misses: a
+  **closed** shadow root, which hands out no reference to follow; a cross-origin
+  iframe; and a secret rendered as plain text with no input element. If the lookup
+  fails the snapshot is still built, from the name heuristic alone, and says so with
+  `degraded: true`. See `docs/bug-a-secret-with-no-input-element.md`. Do not treat
+  this as a guarantee.
 * **http and https only**, and a URL that will not parse is refused rather than
   assumed safe.
 * **Shapes are replaced and counted**: cards, national ID, API keys, signed tokens.

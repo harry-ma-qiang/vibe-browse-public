@@ -5,49 +5,19 @@
  * on demand; a reader holding an old version learns that it is old.
  */
 
-import type { WatchedTab } from '../core/types';
 import type { Answer, Ask, PanelState, TabRow } from '../utils/messaging';
 import { attach, detach, isAttached, release } from '../core/attach';
 import { getBridgeStatus, initBridge } from '../core/bridge';
 
 declare function defineBackground(main: () => void): unknown;
 import { readable, redact, redactUrl } from '../core/redact';
+import { drop, invalidate, stale, watch, watchedTabs } from '../core/watched';
 
 const KEEPALIVE_MINUTES = 1;
 
-const watched = new Map<number, WatchedTab>();
-
-function watch(tab: chrome.tabs.Tab): void {
-  // why: a tab nobody attached to is a page nobody asked this to read.
-  if (tab.id === undefined || !isAttached(tab.id) || !readable(tab.url)) return;
-  const held = watched.get(tab.id);
-  watched.set(tab.id, {
-    tabId: tab.id,
-    url: redactUrl(tab.url ?? '').text,
-    title: redact(tab.title ?? '').text,
-    stale: true,
-    version: (held?.version ?? 0) + 1,
-    lastEventAt: Date.now(),
-  });
-}
-
-function invalidate(tabId: number): void {
-  const held = watched.get(tabId);
-  if (!held) return;
-  // why: the reader keeps its old tree; the number is how it learns it is old.
-  held.stale = true;
-  held.version += 1;
-  held.lastEventAt = Date.now();
-}
-
 function forget(tabId: number): void {
   release(tabId);
-  watched.delete(tabId);
-}
-
-/** Every tab worth watching, newest event first. */
-export function watchedTabs(): WatchedTab[] {
-  return [...watched.values()].sort((a, b) => b.lastEventAt - a.lastEventAt);
+  drop(tabId);
 }
 
 async function panel(): Promise<PanelState> {
@@ -60,7 +30,7 @@ async function panel(): Promise<PanelState> {
       title: redact(tab.title ?? '').text,
       url: redactUrl(tab.url ?? '').text,
       attached: isAttached(tab.id),
-      stale: watched.get(tab.id)?.stale ?? false,
+      stale: stale(tab.id),
       readable: readable(tab.url),
     });
   }
@@ -91,7 +61,7 @@ async function answer(said: Ask): Promise<Answer> {
   if (said.type === 'state') return { ok: true, data: await panel() };
   if (said.type === 'detach') {
     await detach(said.tabId);
-    watched.delete(said.tabId);
+    drop(said.tabId);
     return { ok: true, data: null };
   }
   const tab = await chrome.tabs.get(said.tabId).catch(() => null);
@@ -131,7 +101,7 @@ export default defineBackground(() => {
   chrome.tabs.onUpdated.addListener((tabId, changed, tab) => {
     if (isAttached(tabId) && !readable(tab.url)) {
       void detach(tabId);
-      watched.delete(tabId);
+      drop(tabId);
       return;
     }
     if (changed.status === 'loading' || changed.url !== undefined) watch(tab);

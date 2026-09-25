@@ -9,6 +9,11 @@ over HTTP and waits for the answer to come back through the same websocket.
 
     agent --HTTP(127.0.0.1:8766)--> here --WS(127.0.0.1:8765)--> extension
 
+Both listeners want the same secret. The agent sends it as a bearer header; the
+extension sends it as the `bearer.<token>` websocket subprotocol, because a browser
+cannot set a header on a websocket. Only one extension may be connected at a time,
+and a second handshake is refused rather than allowed to displace the first.
+
 Nothing is stored and nothing is logged but the fact that a command was answered. The
 tree that passes through has already had what it carries taken out of it, in the
 extension, before it reached this process.
@@ -24,17 +29,26 @@ import os
 import secrets
 import sys
 import uuid
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 import websockets
 from websockets.asyncio.server import ServerConnection
+from websockets.http11 import Request, Response
+from websockets.typing import Subprotocol
 
 #: Where the shared secret is kept, readable by its owner and nobody else.
 TOKEN_FILE = Path(os.environ.get("VIBE_BROWSE_TOKEN_FILE", Path.home() / ".vibe-browse-token"))
 
 #: How long a command may take before the caller is told the extension did not answer.
 TIMEOUT = 30.0
+
+#: The websocket subprotocol the extension offers, carrying the secret the HTTP side wants.
+BEARER = "bearer."
+
+#: The only origins a websocket handshake may carry. A page's origin is never one of these.
+EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 
 _extension: ServerConnection | None = None
 _waiting: dict[str, asyncio.Future[dict[str, Any]]] = {}
@@ -68,9 +82,58 @@ def local(origin: str) -> bool:
     return origin == ""
 
 
+def dialled(origins: list[str]) -> bool:
+    """Whether a websocket handshake's origin may be served. A page's may not.
+
+    The HTTP side refuses any origin at all, because no browser sends one there. A
+    websocket is different: a browser must send one, so the extension's own arrives on
+    every dial and refusing it outright would refuse the extension. A page's origin is
+    `http:` or `https:`, and that is what is turned away here.
+    """
+    return all(one.startswith(EXTENSION_ORIGINS) for one in origins)
+
+
+def bearers(request: Request) -> list[str]:
+    """Every subprotocol the handshake offered, in the order it offered them."""
+    said = ",".join(request.headers.get_all("sec-websocket-protocol"))
+    return [one.strip() for one in said.split(",") if one.strip()]
+
+
+def carried(protocols: list[str], secret: str) -> bool:
+    """Whether one offered subprotocol carries the secret. Compared in constant time."""
+    return any(
+        one.startswith(BEARER) and hmac.compare_digest(one[len(BEARER) :], secret)
+        for one in protocols
+    )
+
+
+def guard(secret: str) -> Callable[[ServerConnection, Request], Response | None]:
+    """The handshake check: no page origin, the right secret, and no second extension."""
+
+    def handshake(connection: ServerConnection, request: Request) -> Response | None:
+        if not dialled(request.headers.get_all("origin")):
+            return connection.respond(403, "a page origin is refused\n")
+        if not carried(bearers(request), secret):
+            return connection.respond(401, "no bearer token, or the wrong one\n")
+        if _extension is not None:
+            return connection.respond(409, "an extension is already connected\n")
+        return None
+
+    return handshake
+
+
+def chosen(_connection: ServerConnection, protocols: Sequence[Subprotocol]) -> Subprotocol | None:
+    """Echo back the offered subprotocol the handshake already checked, and no other."""
+    return next((one for one in protocols if one.startswith(BEARER)), None)
+
+
 async def extension(connection: ServerConnection) -> None:
     """Hold the one extension connection, and route every answer back to its caller."""
     global _extension
+    if _extension is not None:
+        # why: the handshake races itself; displacing a live extension is the whole bug.
+        await connection.close(1013, "an extension is already connected")
+        return
     _extension = connection
     print("extension connected", file=sys.stderr)
     try:
@@ -115,6 +178,27 @@ def response(code: int, body: dict[str, Any]) -> bytes:
     return head.encode() + said
 
 
+async def posted(reader: asyncio.StreamReader, headers: dict[str, str]) -> bytes:
+    """Read one command body and relay it, or say why it could not be read."""
+    try:
+        size = int(headers.get("content-length", "0"))
+    except ValueError:
+        return response(400, {"ok": False, "error": "content-length is not a number"})
+    if size < 0:
+        return response(400, {"ok": False, "error": "content-length is negative"})
+    try:
+        body = await reader.readexactly(size) if size else b"{}"
+    except asyncio.IncompleteReadError:
+        return response(400, {"ok": False, "error": "the body was shorter than content-length"})
+    try:
+        asked = json.loads(body)
+    except json.JSONDecodeError as err:
+        return response(400, {"ok": False, "error": f"the body is not json: {err}"})
+    if not isinstance(asked, dict):
+        return response(400, {"ok": False, "error": "the body is not a json object"})
+    return response(200, await relay(asked))
+
+
 async def http(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, secret: str) -> None:
     """Answer one HTTP request: refuse it, or relay it and return what came back.
 
@@ -142,14 +226,7 @@ async def http(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, secre
     elif not authorised(headers, secret):
         writer.write(response(401, {"ok": False, "error": "no bearer token, or the wrong one"}))
     elif method == "POST" and path == "/command":
-        size = int(headers.get("content-length", "0"))
-        body = await reader.readexactly(size) if size else b"{}"
-        try:
-            asked = json.loads(body)
-        except json.JSONDecodeError as err:
-            writer.write(response(400, {"ok": False, "error": f"the body is not json: {err}"}))
-        else:
-            writer.write(response(200, await relay(asked)))
+        writer.write(await posted(reader, headers))
     else:
         writer.write(response(404, {"ok": False, "error": f"no route {method} {path}"}))
 
@@ -163,7 +240,13 @@ async def serve(ws_port: int, http_port: int, secret: str) -> None:
     async def one(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         await http(reader, writer, secret)
 
-    async with websockets.serve(extension, "127.0.0.1", ws_port):
+    async with websockets.serve(
+        extension,
+        "127.0.0.1",
+        ws_port,
+        process_request=guard(secret),
+        select_subprotocol=chosen,
+    ):
         server = await asyncio.start_server(one, "127.0.0.1", http_port)
         print(f"extension: ws://127.0.0.1:{ws_port}", file=sys.stderr)
         print(f"commands:  http://127.0.0.1:{http_port}/command", file=sys.stderr)

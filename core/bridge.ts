@@ -13,8 +13,14 @@ import { COLOURS, group, groups, ungroup, type Colour } from './groups';
 import { query, type Ask } from './query';
 import { sensitive } from './sensitive';
 import { flatten, read } from './tree';
+import { settled, stale } from './watched';
 
 const DEFAULT_WS_URL = 'ws://127.0.0.1:8765';
+
+/** Where the bridge's shared secret is kept, and the whole of what a user configures. */
+export const TOKEN_KEY = 'bridgeToken';
+
+const BEARER = 'bearer.';
 
 const POLL_MS = 1000;
 
@@ -66,11 +72,14 @@ async function build(tabId: number): Promise<Snapshot | { error: string }> {
   // why: a tree nobody holds a debugger on is a page this is no longer reading.
   for (const id of held.keys()) if (!isAttached(id)) held.delete(id);
   held.set(tabId, snapshot);
+  settled(tab);
   return snapshot;
 }
 
-async function standing(tabId: number): Promise<Snapshot | { error: string }> {
-  return held.get(tabId) ?? build(tabId);
+/** The tree this holds for a tab, rebuilt when the page has moved under it. */
+export async function standing(tabId: number): Promise<Snapshot | { error: string }> {
+  const kept = held.get(tabId);
+  return kept && !stale(tabId) ? kept : build(tabId);
 }
 
 function asking(msg: Msg): Ask {
@@ -142,7 +151,7 @@ async function executeAction(msg: Msg): Promise<Result> {
     case 'query': {
       const snapshot = await standing(tid);
       if ('error' in snapshot) return { ok: false, error: snapshot.error };
-      return { ok: true, data: query(snapshot.root, asking(msg)) };
+      return { ok: true, data: { ...query(snapshot.root, asking(msg)), degraded: snapshot.degraded } };
     }
 
     case 'act': {
@@ -213,14 +222,29 @@ function schedulePoll(): void {
   }, POLL_MS);
 }
 
-function poll(): void {
+async function secret(): Promise<string> {
+  const held = (await chrome.storage.local.get(TOKEN_KEY).catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  const said = held[TOKEN_KEY];
+  return typeof said === 'string' ? said.trim() : '';
+}
+
+async function poll(): Promise<void> {
   if (ws) return;
   if (!loopback(configuredUrl)) {
     setStatus('offline');
     return;
   }
+  const token = await secret();
+  if (!token) {
+    setStatus('offline');
+    schedulePoll();
+    return;
+  }
   setStatus('connecting');
-  const socket = new WebSocket(configuredUrl);
+  const socket = new WebSocket(configuredUrl, [`${BEARER}${token}`]);
   ws = socket;
   socket.onopen = () => setStatus('connected');
   socket.onmessage = (event: MessageEvent<string>) => {
@@ -240,7 +264,7 @@ function poll(): void {
 export function initBridge(url?: string, tabs?: () => Promise<TabRow[]>): void {
   if (url) configuredUrl = url;
   if (tabs) panelTabs = tabs;
-  poll();
+  void poll();
 }
 
 /** Whether the bridge is connected, being dialled, or not there. */

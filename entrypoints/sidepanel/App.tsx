@@ -2,7 +2,8 @@
  * The panel: which tabs this is reading, and the one control that decides.
  *
  * Attaching is the only thing a person does here, and it is deliberately the only
- * thing, because a page nobody attached is a page this has never read.
+ * thing. It is not the only way a tab is attached: the bridge attaches them too, and
+ * those show in this list beside the ones clicked.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -101,12 +102,14 @@ export function App() {
           <code className="rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
             uv run server.py
           </code>{' '}
-          in the project&apos;s <span className="font-medium">bridge</span> folder.
+          in the project&apos;s <span className="font-medium">bridge</span> folder, then store
+          its token as the README describes. Without a stored token this does not dial at all.
         </p>
       ) : null}
 
       <p className="px-3 py-2 text-[10px] leading-relaxed text-neutral-500">
-        Nothing is read until you attach it.
+        Nothing is read until it is attached. Every tab the bridge attaches appears here
+        too, and whoever holds the bridge token can attach one without clicking.
       </p>
 
       <ul className="flex-1 overflow-y-auto px-1 pb-2">
