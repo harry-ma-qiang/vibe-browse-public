@@ -16,8 +16,9 @@ Settled by: `a_named_control_appears_in_the_interactive_tree`
 
 Settled by: `a_password_field_carries_a_marker_and_not_a_value`
 
-Chrome sends no `inputType`, so the name and the role are the signal. A field with
-no accessible name is missed: see `docs/KNOWN-ISSUES.md`.
+Chrome sends no `inputType`, so here the name and the role are the signal. A field
+with no accessible name is reached by the document instead: see
+`docs/req-sealing-a-secret-field.md`.
 
 ## A site on the blocked list is never read
 

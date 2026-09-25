@@ -129,4 +129,4 @@ A field is sealed because the document said so - its type, its computed style, i
 autocomplete or its name - with the accessible name as a fallback. It can still miss:
 a closed shadow root, a cross-origin iframe, a secret printed as plain text. If the
 lookup failed, the snapshot says `degraded: true` and only the fallback ran. Read
-`docs/KNOWN-ISSUES.md`.
+`docs/bug-a-secret-with-no-input-element.md`.

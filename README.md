@@ -96,7 +96,7 @@ on this problem and the criticism was fair; it is fair here too.
   What this misses: a closed shadow root, a cross-origin iframe, and a secret
   rendered as plain text with no input element. If the lookup fails the snapshot is
   still built, from the name heuristic alone, and says so with `degraded: true`. See
-  `docs/KNOWN-ISSUES.md`. Do not treat this as a guarantee.
+  `docs/bug-a-secret-with-no-input-element.md`. Do not treat this as a guarantee.
 * **http and https only**, and a URL that will not parse is refused rather than
   assumed safe.
 * **Shapes are replaced and counted**: cards, national ID, API keys, signed tokens.
@@ -113,8 +113,15 @@ on this problem and the criticism was fair; it is fair here too.
 * **The page watcher runs in an isolated world**, so a page cannot silence it or
   forge a change.
 
-Not a proof. A smaller blast radius, and an honest account of the edges. What is still
-open, and not fixed, is in `docs/KNOWN-ISSUES.md`.
+The whole chain — bridge, extension, protocol, live page — has been driven by hand on
+Chrome 153, with both password fields flipped to cleartext and neither value reaching
+the snapshot. That run is written down as
+`docs/test-driving-the-bridge-end-to-end.md`, so a person can repeat it. It is a hand
+run, not an automated test: the suite covers `read()`, `query()`, `sensitive()` and
+the redaction, called directly.
+
+Not a proof. A smaller blast radius, and an honest account of the edges. What is
+still open, and not fixed, is written as `bug` records in `docs/`.
 
 ## What it deliberately does not do
 

@@ -9,8 +9,6 @@ is about, and holds one claim per heading.
 | `test` | A case a test plan carries, in the shape a person would run it | the test passing |
 | `bug` | A defect: what happens, what should, and how to see it | a test that would have caught it |
 
-Beside them, `KNOWN-ISSUES.md`: what is open at this release and has not been fixed.
-
 There is no tool here for reading these. They are text, and a person opens them.
 
 A file says what it claims and what would settle it. It does not say what was decided in
