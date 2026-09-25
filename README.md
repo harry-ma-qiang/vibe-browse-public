@@ -9,7 +9,6 @@ tool-call interface, instead of a picture of the page.
     |--- AXTree ---------->|--- JSON tree ----->|
     |                      |                    |
     |<-- CDP Input --------|<-- {click, 12} ----|
-    |                      |                    |
 
   read:  Accessibility.getFullAXTree
   act:   DOM.getBoxModel  ->  Input.dispatchMouseEvent
@@ -28,8 +27,8 @@ It answers with `{"action":"click","nodeId":12}`.
 ## Why this is faster
 
 A screenshot is thousands of image tokens and still has to be guessed at. The same
-page as a filtered tree is a few hundred tokens of text, and each line already names
-what the element is and how to reach it.
+page as a filtered tree is a few hundred tokens of text, each line naming what the
+element is and how to reach it.
 
 | | per look |
 |---|---|
@@ -37,55 +36,44 @@ what the element is and how to reach it.
 | whole tree | ~3,000 text tokens |
 | tree, interactive only | **~200 text tokens, ids exact** |
 
-Two consequences beyond cost. There is no coordinate to get wrong, so a click lands
-on the element the agent named or is refused. And a tree is cheap enough to re-read
-after every action, which is what stops a ten-step task decaying step by step.
+There is no coordinate to get wrong, so a click lands on the element the agent named
+or is refused. And a tree is cheap enough to re-read after every action, which is what
+stops a ten-step task decaying step by step.
 
 ## The surface
 
 | Call | Does |
 |---|---|
-| `attach(tabId, url)` | hold the protocol on one tab; refused on non-http and on blocked hosts |
-| `read(tabId, version, nodes, url?, sealed?)` | build the tree an agent reads; refused on a blocked host |
-| `sensitive(tabId)` | ask the document which fields hold a secret, by backend node id |
+| `attach(tabId, url)` | hold the protocol on one tab; refused on non-http and blocked hosts |
+| `read(tabId, version, nodes, url?, sealed?)` | build the tree an agent reads |
+| `sensitive(tabId)` | ask the document which fields hold a secret |
 | `query(root, ask)` | narrow by role, text, depth, or interactive only |
 | `act(tabId, command, nodes)` | click, type, focus, scroll — by node id |
 | `group(tabIds, title, colour)` | put an errand's tabs together |
-| `redact(text)` | replace what is recognised, and count it |
-| `redactUrl(url)` | the same, plus the value of any credential-shaped parameter |
-| `readable(url)` | whether a page may be read: right scheme, and not on `BLOCKED` |
+| `redact(text)`, `redactUrl(url)` | replace what is recognised, and count it |
+| `readable(url)` | whether a page may be read: right scheme, not on `BLOCKED` |
 
-What each call is required to do is written as `req` records in `docs/`. The shape of
-every argument an agent sends, and of every reply, is in `bridge/SKILL.md`. An agent
-reaches all of it from outside the browser through `bridge/server.py`.
+What each call is required to do is written as `req` records in `docs/`.
 
-## The bridge, and the secret both ends want
+## How an agent reaches it
 
-`bridge/server.py` makes a token on first run and keeps it at `~/.vibe-browse-token`,
-mode 0600. An agent sends it as `Authorization: Bearer <token>` over HTTP. The
-extension sends the same token as the websocket subprotocol `bearer.<token>`, because
-a browser cannot put a header on a websocket. A handshake without it is refused with
-401, and a second extension with 409 rather than being allowed to displace the first.
+An agent does not talk to the extension directly. `bridge/server.py` sits between
+them: the agent posts JSON over HTTP on loopback, the bridge passes it to the
+extension over a websocket, and the reply comes back the same way. Anything that can
+make an HTTP request will do, `curl` included. Every command and reply shape is in
+`bridge/SKILL.md`, written for an agent to read.
 
-The two listeners treat `Origin` differently, on purpose. Nothing that speaks HTTP to
-the bridge is a browser, so any `Origin` there is refused with 403. A websocket is the
-opposite: a browser has to send one, and the extension's own
-`chrome-extension://<id>` arrives on every dial, so refusing all of them would refuse
-the extension. What is refused there is a **page** origin — anything that is not
-`chrome-extension://`, `moz-extension://` or `safari-web-extension://` — which is what
-a web page reaching for `ws://127.0.0.1:8765` would carry.
-
-You give the extension the token once, by hand. There is no settings screen: open
-`chrome://extensions`, find vibe-browse, click **service worker**, and in the console
-that opens run
+Both ends share one secret, made on first run and kept at `~/.vibe-browse-token`.
+You give it to the extension once, by hand — there is no settings screen. Open
+`chrome://extensions`, find vibe-browse, click **service worker**, and run:
 
 ```js
 chrome.storage.local.set({ bridgeToken: 'paste the contents of ~/.vibe-browse-token' })
 ```
 
-Until a token is stored the side panel stays on `bridge offline` and the extension
-does not dial at all. It picks the token up within a second of being set; there is no
-need to reload it. Replacing the token file means pasting the new value the same way.
+Until a token is stored the side panel reads `bridge offline` and the extension does
+not dial at all. It picks the token up within a second. A dial without the token is
+refused, and so is a second one, so nothing can quietly take the extension's place.
 
 ## What it does about the obvious danger
 
@@ -97,23 +85,21 @@ this project least of all. The DevTools Protocol was built for debuggers and the
 accessibility tree for assistive technology. Neither was built to stand between a
 signed-in browser and software acting on its own. There is no permission prompt in
 them, no per-action consent, no notion of a page the reader ought not to have. Muse
-rests on this. Chrome's own agent work rests on this. browser-use and every open
-agent rests on this. The idea is not secret and the substrate is not secure. What
-differs between them is only how much is handed over by default, and how honestly
-that is written down.
+rests on this. Chrome's own agent work rests on this. browser-use and every open agent
+rests on this. The idea is not secret and the substrate is not secure. What differs
+between them is only how much is handed over by default, and how honestly that is
+written down.
 
 What this one does, none of it a boundary:
 
 * **A blocked list, checked three times** — at attach, on every navigation of an
   attached tab, and before a tree is built. Banks, password managers, payment, tax.
-  An unparseable URL is blocked. Exported as `BLOCKED` in `core/redact.ts`.
-  A list is a thing you can be missing from.
+  Exported as `BLOCKED` in `core/redact.ts`. A list is a thing you can be missing from.
 * **Password fields found in the DOM, not in the tree.** Chrome's accessibility tree
   carries no `inputType`, no `protected` and no `autocomplete` — measured, on Chrome
-  153 — so the document is asked instead and the tree is sealed by
-  `backendDOMNodeId`. The set is sticky while the tab is attached, so a field
-  revealed by a "Show password" toggle stays sealed. Open shadow roots are walked;
-  closed ones cannot be. See `docs/req-sealing-a-secret-field.md`.
+  153 — so the document is asked instead. The set is sticky while the tab is attached,
+  so a field revealed by a "Show password" toggle stays sealed. Open shadow roots are
+  walked; closed ones cannot be. See `docs/req-sealing-a-secret-field.md`.
 * **Shapes replaced and counted** — cards, national ID, API keys, signed tokens.
   A pattern is not a promise.
 * **Four protocol domains**, none that reads a request or a stored value.
@@ -125,35 +111,29 @@ Whoever holds it can attach any tab. Stop the bridge when nothing is using it.
 See `docs/bug-the-token-is-the-only-consent.md`.
 
 Where this project stands. Meta shipped first and answered for the security
-afterwards; that order was wrong, and saying so is part of why this exists. Google
-has moved slower on the same capability and has pushed toward a surface a site opts
-into and can refuse, rather than a debugger that takes the page whole. That is the
-more conservative road, it is less capable today, and it is the right one. A
-debugger-driven agent should be the fallback nobody is proud of, not the destination.
+afterwards; that order was wrong, and saying so is part of why this exists. Google has
+moved slower on the same capability and has pushed toward a surface a site opts into
+and can refuse, rather than a debugger that takes the page whole. That is the more
+conservative road, it is less capable today, and it is the right one. A debugger-driven
+agent should be the fallback nobody is proud of, not the destination.
 
 So use this with cause. Attach the tab you mean, stop the bridge when you are done,
-and point it at nothing you would not hand to a stranger. And if you are shipping
-this capability to other people, say what it cannot protect before you say what it
-can. That is the whole of the disagreement.
+and point it at nothing you would not hand to a stranger. If you are shipping this
+capability to other people, say what it cannot protect before you say what it can.
+That is the whole of the disagreement.
 
 The whole chain has been driven by hand on Chrome 153, with both password fields
-flipped to cleartext and neither value reaching the snapshot. That run is written
-down as `docs/test-driving-the-bridge-end-to-end.md` so a person can repeat it. It is
-a hand run, not an automated test.
-
-Not a proof. A smaller blast radius, and an honest account of the edges. What is
-still open, and not fixed, is written as `bug` records in `docs/`.
+flipped to cleartext and neither value reaching the snapshot;
+`docs/test-driving-the-bridge-end-to-end.md` so a person can repeat it. Not a proof.
+A smaller blast radius, and an honest account of the edges. What is still open, and
+not fixed, is written as `bug` records in `docs/`.
 
 ## What it deliberately does not do
 
-**Screenshots.** A picture would undercut the argument above and cost four orders of
-magnitude more per look.
-
-**Bookmarks.** One permission prompt more than this is worth.
-
-**Audio and video capture.** The screenshot argument, several times over.
-
-**Console and network inspection.** That is a debugger. This is not one.
+No screenshots — a picture would undercut the argument above and cost four orders of
+magnitude more per look. No bookmarks, one permission more than this is worth. No
+audio or video capture. No console or network inspection: that is a debugger, and this
+is not one.
 
 ## Status
 
