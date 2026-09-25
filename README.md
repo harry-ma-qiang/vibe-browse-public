@@ -54,7 +54,9 @@ after every action, which is what stops a ten-step task decaying step by step.
 | `redactUrl(url)` | the same, plus the value of any credential-shaped parameter |
 | `readable(url)` | whether a page may be read: right scheme, and not on `BLOCKED` |
 
-Details, and the shape of every argument, are in `docs/`.
+Details, and the shape of every argument, are in `docs/`. An agent reaches all of it
+from outside the browser through `bridge/server.py`, whose commands are listed in
+`bridge/SKILL.md`.
 
 ## What it does about the obvious danger
 

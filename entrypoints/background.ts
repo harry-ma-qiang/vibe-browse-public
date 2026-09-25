@@ -8,6 +8,7 @@
 import type { WatchedTab } from '../core/types';
 import type { Answer, Ask, PanelState, TabRow } from '../utils/messaging';
 import { attach, detach, isAttached, release } from '../core/attach';
+import { getBridgeStatus, initBridge } from '../core/bridge';
 
 declare function defineBackground(main: () => void): unknown;
 import { readable, redact, redactUrl } from '../core/redact';
@@ -53,13 +54,14 @@ async function panel(): Promise<PanelState> {
   const rows = new Map<number, TabRow>();
   const here = await chrome.tabs.query({ active: true, currentWindow: true });
   for (const tab of here) {
-    if (tab.id === undefined || !readable(tab.url)) continue;
+    if (tab.id === undefined) continue;
     rows.set(tab.id, {
       tabId: tab.id,
       title: redact(tab.title ?? '').text,
       url: redactUrl(tab.url ?? '').text,
       attached: isAttached(tab.id),
       stale: watched.get(tab.id)?.stale ?? false,
+      readable: readable(tab.url),
     });
   }
   for (const held of watchedTabs()) {
@@ -69,9 +71,10 @@ async function panel(): Promise<PanelState> {
       url: held.url,
       attached: isAttached(held.tabId),
       stale: held.stale,
+      readable: true,
     });
   }
-  return { tabs: [...rows.values()], bridge: 'offline' };
+  return { tabs: [...rows.values()], bridge: getBridgeStatus() };
 }
 
 function asked(message: unknown): Ask | null {
@@ -135,8 +138,10 @@ export default defineBackground(() => {
     else if (changed.status === 'complete') invalidate(tabId);
   });
 
+  initBridge(undefined, async () => (await panel()).tabs);
+
   chrome.alarms.create('keepalive', { periodInMinutes: KEEPALIVE_MINUTES });
   chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'keepalive') void watched.size;
+    if (alarm.name === 'keepalive' && getBridgeStatus() === 'offline') initBridge();
   });
 });

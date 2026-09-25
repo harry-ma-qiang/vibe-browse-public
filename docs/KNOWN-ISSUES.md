@@ -49,12 +49,35 @@ they covered sealing a noise-role node and sealing an ignored node, and both rea
 that code by way of an `inputType` property Chrome never sends. Those paths in
 `core/tree.ts` are now untested and, on Chrome, unreachable.
 
-## 3. Reading and acting have no caller yet
+## 3. The bridge has not been driven end to end
 
-`read()`, `query()` and `act()` are exercised by the tests and by nothing else. The
-background process attaches, watches and detaches; it does not yet build a tree or
-carry out a command, because the client that would ask it to does not exist. The
-bridge is not part of this release.
+`core/bridge.ts` now calls `read()`, `query()` and `act()`, and `bridge/server.py`
+relays commands to it, so the path an agent uses exists. What has actually been
+observed is less than that.
 
-Until that exists, the security argument in `README.md` describes what the code would
-do, not what a running extension has been observed doing end to end.
+Observed: the server's four HTTP behaviours, by hand — `GET /health` without a token,
+`POST /command` refused at 401 without a token and with a wrong one, refused at 403
+with an `Origin` header, 404 on any other route, both listeners on `127.0.0.1` only.
+
+Not observed: the extension half. Dialling the socket, building a tree on demand and
+carrying out a command have no automated test and were not run in a browser for this
+release. The test suite covers `read()`, `query()` and the redaction, called directly.
+So the account in `README.md` is still what the code does, not what a running
+extension has been watched doing.
+
+## 4. Snapshots do not survive the service worker
+
+The snapshot a `query` or an `act` works against is held in the worker's memory.
+Chrome stops the worker when it is idle, and the tree goes with it. The next `query`
+builds a fresh one, whose node ids need not match the ids the agent is holding.
+
+An `act` against a moved id is refused rather than carried out — the node is re-read
+and its role and name are compared first — but a `query` returning different ids for
+the same page is expected, not a fault. Re-snapshot if a reply looks unfamiliar.
+
+## 5. The bridge asks nobody before it acts
+
+While the bridge is running, any process that can read `~/.vibe-browse-token` can
+drive every attached tab. There is no per-command confirmation and no record of what
+was done. Attaching a tab is the only consent, and it is given once, for the whole
+session. Stop the server when an agent is not using it.

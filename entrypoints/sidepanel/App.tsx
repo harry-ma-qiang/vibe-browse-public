@@ -17,22 +17,35 @@ const LAMP = {
 const SAID = {
   connected: 'bridge up',
   connecting: 'connecting',
-  offline: 'no bridge',
+  offline: 'bridge offline',
 };
+
+function Button({ tab, onToggle }: { tab: TabRow; onToggle: (tab: TabRow) => void }) {
+  if (!tab.readable) {
+    return (
+      <span className="shrink-0 rounded px-2 py-0.5 text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+        not readable
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={() => onToggle(tab)}
+      className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+        tab.attached
+          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300'
+          : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200'
+      }`}
+    >
+      {tab.attached ? 'detach' : 'attach'}
+    </button>
+  );
+}
 
 function Row({ tab, onToggle }: { tab: TabRow; onToggle: (tab: TabRow) => void }) {
   return (
     <li className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-      <button
-        onClick={() => onToggle(tab)}
-        className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
-          tab.attached
-            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-            : 'bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300'
-        }`}
-      >
-        {tab.attached ? 'reading' : 'attach'}
-      </button>
+      <Button tab={tab} onToggle={onToggle} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] text-neutral-800 dark:text-neutral-100">
           {tab.title || '(no title)'}
@@ -70,7 +83,7 @@ export function App() {
   );
 
   const bridge = state?.bridge ?? 'offline';
-  const reading = state?.tabs.filter((tab) => tab.attached).length ?? 0;
+  const tabs = state?.tabs ?? [];
 
   return (
     <div className="flex h-screen flex-col bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200">
@@ -82,12 +95,29 @@ export function App() {
         </span>
       </header>
 
+      {bridge === 'offline' ? (
+        <p className="border-b border-neutral-200 px-3 py-2 text-[10px] leading-relaxed text-neutral-500 dark:border-neutral-800">
+          No agent can reach this yet. Start the bridge with{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+            uv run server.py
+          </code>{' '}
+          in the project&apos;s <span className="font-medium">bridge</span> folder.
+        </p>
+      ) : null}
+
       <p className="px-3 py-2 text-[10px] leading-relaxed text-neutral-500">
-        Nothing is read until you attach it. {reading} of {state?.tabs.length ?? 0} tabs.
+        Nothing is read until you attach it.
       </p>
 
       <ul className="flex-1 overflow-y-auto px-1 pb-2">
-        {state?.tabs.map((tab) => <Row key={tab.tabId} tab={tab} onToggle={toggle} />)}
+        {tabs.map((tab) => (
+          <Row key={tab.tabId} tab={tab} onToggle={toggle} />
+        ))}
+        {tabs.length === 0 ? (
+          <li className="px-2 py-1.5 text-[10px] text-neutral-400">
+            Open a web page in this window and it appears here to attach.
+          </li>
+        ) : null}
       </ul>
     </div>
   );

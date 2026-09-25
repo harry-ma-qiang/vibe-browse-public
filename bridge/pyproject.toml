@@ -13,8 +13,8 @@ dev = [
     "pytest>=8.0",
 ]
 
-# why: no source yet, so this is a dependency environment and not a distributable
-# package. When the bridge lands, drop this and declare the build backend instead.
+# why: one script, run in place, so this is a dependency environment and not a
+# distributable package. Declare a build backend if it ever ships as one.
 [tool.uv]
 package = false
 

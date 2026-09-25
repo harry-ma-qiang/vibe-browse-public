@@ -21,6 +21,7 @@ export interface TabRow {
   url: string;
   attached: boolean;
   stale: boolean;
+  readable: boolean;
 }
 
 /** Everything the panel draws, fetched in one call. */
