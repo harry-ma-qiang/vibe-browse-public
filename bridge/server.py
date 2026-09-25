@@ -41,19 +41,10 @@ from websockets.asyncio.server import ServerConnection
 from websockets.http11 import Request, Response
 from websockets.typing import Subprotocol
 
-#: Where the shared secret is kept, readable by its owner and nobody else.
 TOKEN_FILE = Path(os.environ.get("VIBE_BROWSE_TOKEN_FILE", Path.home() / ".vibe-browse-token"))
-
-#: How long a command may take before the caller is told the extension did not answer.
 TIMEOUT = 30.0
-
-#: The shortest stored secret served. An empty file would make every comparison true.
 SHORTEST_TOKEN = 32
-
-#: The websocket subprotocol the extension offers, carrying the secret the HTTP side wants.
 BEARER = "bearer."
-
-#: The only origins a websocket handshake may carry. A page's origin is never one of these.
 EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 
 _extension: ServerConnection | None = None
@@ -61,10 +52,8 @@ _waiting: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
 
 def token() -> str:
-    """The shared secret, made on first use and kept at 0600 for its owner alone.
-
-    A stored secret shorter than `SHORTEST_TOKEN` is refused rather than served. An
-    empty file would otherwise make `hmac.compare_digest` true for an empty bearer.
+    """The shared secret, made on first use and kept at 0600 for its owner.
+    A stored secret under `SHORTEST_TOKEN` is refused; an empty file matches any bearer.
     """
     if TOKEN_FILE.exists():
         held = TOKEN_FILE.read_text().strip()
@@ -90,21 +79,15 @@ def authorised(headers: dict[str, str], secret: str) -> bool:
 
 
 def local(origin: str) -> bool:
-    """Whether a browser origin may be served. Anything with an origin at all may not.
-
-    A page cannot set this header, so a request carrying one came from a page, and no
-    page has business driving a debugger. This is what a DNS rebinding attack trips on.
+    """Whether a browser origin may be served. Anything with an origin may not.
+    A page cannot set this header, so one that does is what DNS rebinding trips on.
     """
     return origin == ""
 
 
 def dialled(origins: list[str]) -> bool:
     """Whether a websocket handshake's origin may be served. A page's may not.
-
-    The HTTP side refuses any origin at all, because no browser sends one there. A
-    websocket is different: a browser must send one, so the extension's own arrives on
-    every dial and refusing it outright would refuse the extension. A page's origin is
-    `http:` or `https:`, and that is what is turned away here.
+    Unlike the HTTP side, a browser always sends one here, so only the extension's is allowed.
     """
     return all(one.startswith(EXTENSION_ORIGINS) for one in origins)
 
@@ -217,9 +200,7 @@ async def posted(reader: asyncio.StreamReader, headers: dict[str, str]) -> bytes
 
 async def http(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, secret: str) -> None:
     """Answer one HTTP request: refuse it, or relay it and return what came back.
-
-    Four routes and no more. `GET /health` says whether an extension is connected and
-    needs no secret, because a caller has to be able to ask before it has one.
+    Four routes. `GET /health` needs no secret: a caller must ask before it has one.
     """
     try:
         head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 10.0)

@@ -32,7 +32,7 @@ export function watch(tab: chrome.tabs.Tab): void {
   watched.set(tab.id, row(tab, true, (watched.get(tab.id)?.version ?? 0) + 1));
 }
 
-/** Note a tree just built for a tab, so it may be reused until the page moves again. */
+/** Note a tree just built for a tab, reusable until that page moves again. */
 export function settled(tab: chrome.tabs.Tab): void {
   if (tab.id === undefined) return;
   watched.set(tab.id, row(tab, false, watched.get(tab.id)?.version ?? 1));

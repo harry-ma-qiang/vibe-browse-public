@@ -4,9 +4,8 @@
 /**
  * What the sensitive-field lookup is held to, run against a stand-in for the protocol.
  *
- * No browser is started here. The stand-in answers the calls the lookup makes and can
- * be made to fail, which is the case the snapshot must survive. The probe itself is a
- * string of JavaScript, so it is run against a stand-in document too.
+ * No browser is started here. The stand-in answers what the lookup calls and can be made
+ * to fail, the case the snapshot must survive; the probe runs against a stand-in document.
  */
 
 import test from 'node:test';

@@ -68,7 +68,7 @@ export function blocked(url: string | undefined): boolean {
   }
 }
 
-/** Whether a page may be read: the protocol will reach it and the list allows it. */
+/** Whether a page may be read: the protocol reaches it and the list allows it. */
 export function readable(url: string | undefined): boolean {
   return reachable(url) && !blocked(url);
 }

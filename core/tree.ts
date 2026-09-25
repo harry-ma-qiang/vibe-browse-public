@@ -14,7 +14,7 @@ import { isPassword, readable, redactNode } from './redact';
 /** Roles that describe layout rather than anything a reader could act on. */
 export const NOISE = new Set(['none', 'presentation', 'LineBreak', 'InlineTextBox', 'generic']);
 
-/** Roles kept even when the protocol ignored them, because they can still be acted on. */
+/** Roles kept though the protocol ignored them: dropping one loses the only way in. */
 export const RESCUED = new Set(['button', 'link', 'textbox', 'checkbox', 'radio', 'combobox', 'menuitem']);
 
 interface Building {
@@ -73,7 +73,6 @@ function gather(ids: string[], held: Building): AxNode[] {
       else out.push(...gather(node.childIds ?? [], held));
       continue;
     }
-    // why: an ignored button is still a button, and dropping it loses the only way in.
     const rescued = RESCUED.has(node.role?.value ?? '') && node.backendDOMNodeId !== undefined;
     const built = rescued ? build(id, held, true) : null;
     if (built) out.push(built);

@@ -4,9 +4,8 @@
 /**
  * The panel: which tabs this is reading, and the one control that decides.
  *
- * Attaching is the only thing a person does here, and it is deliberately the only
- * thing. It is not the only way a tab is attached: the bridge attaches them too, and
- * those show in this list beside the ones clicked.
+ * Attaching is the only thing a person does here, and deliberately so. It is not the
+ * only way a tab is attached: the bridge attaches them too, and those show here beside it.
  */
 
 import { useCallback, useEffect, useState } from 'react';
