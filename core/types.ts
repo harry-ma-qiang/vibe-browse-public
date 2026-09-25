@@ -53,6 +53,12 @@ export interface AxNode {
   children: AxNode[];
 }
 
+/** Which nodes the document says hold a secret, and whether that lookup fell back. */
+export interface Sealed {
+  ids: ReadonlySet<number>;
+  degraded: boolean;
+}
+
 /** One tree as built, held between the building of it and the reading of it. */
 export interface Snapshot {
   tabId: number;
@@ -60,6 +66,7 @@ export interface Snapshot {
   root: AxNode;
   replaced: Record<string, number>;
   builtAt: number;
+  degraded: boolean;
 }
 
 /** What an agent may ask for, whole. No command finds anything: finding is reading

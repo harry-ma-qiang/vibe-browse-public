@@ -1,53 +1,61 @@
 # Known issues
 
-Open items at the first public release. None is fixed. Read this before trusting the
-redaction with anything that matters.
+Open items at the first public release. Read this before trusting the redaction with
+anything that matters.
 
-## 1. A revealed password can reach the accessibility tree
+## 1. Password detection: what it now covers, and what it still misses
 
-Password detection is a heuristic on the accessible name and the role. It has to be,
-because Chrome does not expose the input type.
+Mostly closed. Detection is no longer name-only.
 
-Evidence, measured on Chrome for Testing 153.0.8010.12 against a sign-in page written
-for the test. `Accessibility.getFullAXTree` emitted these property names and no
-others:
+The accessibility tree cannot say which field is a password. Measured on Chrome for
+Testing 153.0.8010.12 against a sign-in page written for the test,
+`Accessibility.getFullAXTree` emitted these property names and no others:
 
 ```
 editable  focusable  invalid  labelledby  level  multiline  readonly  required
 settable  url
 ```
 
-No `inputType`. No `protected`. No `autocomplete`. The property checks in
-`isPassword()` never fire on this engine. They are kept only for engines that do
-send them.
+No `inputType`. No `protected`. No `autocomplete`. So `core/sensitive.ts` asks the
+document instead, and the tree is sealed by `backendDOMNodeId`:
 
-What follows:
+- `DOM.querySelectorAll` over `input,textarea`, then `DOM.describeNode` for the
+  backend ids.
+- one `Runtime.evaluate`, in the isolated world the page cannot reach, deciding on
+  `type === 'password'`, a computed `-webkit-text-security` other than `none`, an
+  `autocomplete` containing `password` or equal to `one-time-code`, and a `name` or
+  `id` matching `pass otp secret token recovery cvv cvc pin ssn`.
+- the set is sticky while the tab is attached, so a field that flips to `type=text`
+  under a "Show password" toggle stays sealed. It is cleared on detach.
 
-- A `type=password` field is masked by Chrome itself, so its value arrives as bullet
-  characters even when nothing seals it.
-- A page that flips the field to `type=text` (a "Show password" toggle) makes the
-  value arrive in cleartext. A field named `Password` is still sealed by name. A
-  field with no accessible name is not.
+`isPassword()` in `core/redact.ts` is unchanged and still runs, as the fallback layer.
 
-The two dumps in `tests/fixtures/` are that measurement: `ax-before.json` with the
-value masked, `ax-after.json` with it in cleartext.
+What is still missed:
 
-The fix is to ask the DOM which nodes are sensitive — `DOM.querySelectorAll` over
-`input[type=password]`, `input[autocomplete*=password]`, `input[name*=pass i]` and
-the rest — and seal by `backendDOMNodeId` rather than by name. Not done.
+- a field inside a **closed shadow root**: `document.querySelectorAll` does not reach
+  it, and neither does the computed-style check.
+- a field in a **cross-origin iframe**: the lookup runs in the main frame only.
+- a page that renders a secret as **plain text with no input element** — a revealed
+  password printed into a `<span>`, a code shown in a heading. Nothing here has an
+  input to ask about, and only the name heuristic and the shape patterns apply.
+- a tab where the lookup itself fails. The protocol calls are not allowed to break a
+  snapshot: on any failure the snapshot is built from the name heuristic alone and
+  carries `degraded: true`, which a caller can read.
 
-## 2. A test is marked todo because it fails
+The two dumps in `tests/fixtures/` are the original measurement: `ax-before.json`
+with the value masked, `ax-after.json` with it in cleartext.
 
-`an_unnamed_password_field_is_not_sealed` in `tests/tree.test.ts`.
+## 2. Two removed tests left code untested
 
-It asserts that the unnamed password input in `ax-before.json` is sealed. It is not:
-its value reaches the tree as bullet characters. The test is left failing under
-`{ todo: true }` rather than weakened. It will pass when issue 1 is fixed.
+The todo test is gone: `an_unnamed_password_field_is_sealed_when_the_document_names_it`
+in `tests/tree.test.ts` now passes, against backend node 27 of the real dump.
 
 Two hand-written tests were removed when the fixtures were replaced with real dumps:
 they covered sealing a noise-role node and sealing an ignored node, and both reached
-that code by way of an `inputType` property Chrome never sends. Those paths in
-`core/tree.ts` are now untested and, on Chrome, unreachable.
+that code by way of an `inputType` property Chrome never sends. Those paths are now
+reached by the sealed set instead, and are covered again — but through the DOM, not
+through the property checks. The property checks in `isPassword()` remain unreachable
+on Chrome and untested.
 
 ## 3. The bridge has not been driven end to end
 

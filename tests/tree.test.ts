@@ -22,6 +22,7 @@ const AFTER = dump('after');
 
 const CLEARTEXT = 'CORRECT-HORSE-BATTERY-1';
 const MASKED = '•'.repeat(23);
+const UNNAMED = '•'.repeat(19);
 const CARD = '4111 1111 1111 1111';
 const EMAIL = 'user.test@example.com';
 const KEY = 'AKIAIOSFODNN7EXAMPLE';
@@ -78,10 +79,41 @@ test('a_name_over_the_longest_is_dropped_whole_and_takes_its_secrets', () => {
   assert.ok(!JSON.stringify(snapshot).includes(KEY));
 });
 
-test('an_unnamed_password_field_is_not_sealed', { todo: true }, () => {
-  // why: kept failing on purpose; the miss is recorded in docs/KNOWN-ISSUES.md.
-  const snapshot = read(1, 1, BEFORE);
+test('an_unnamed_password_field_is_sealed_when_the_document_names_it', () => {
+  const snapshot = read(1, 1, BEFORE, undefined, { ids: new Set([27]), degraded: false });
+  const held = byBackend(snapshot.root, 27);
+  assert.equal(held?.value, '[password]');
+  assert.equal(held?.name, '');
+  assert.equal(held?.description, '');
+  assert.deepEqual(held?.children, []);
+  assert.ok(!JSON.stringify(snapshot).includes(UNNAMED));
+});
+
+test('a_revealed_unnamed_field_is_sealed_beside_the_named_one', () => {
+  const sealed = { ids: new Set([23, 27]), degraded: false };
+  const snapshot = read(1, 1, AFTER, undefined, sealed);
+  assert.equal(byBackend(snapshot.root, 23)?.value, '[password]');
   assert.equal(byBackend(snapshot.root, 27)?.value, '[password]');
+  assert.ok(!JSON.stringify(snapshot).includes(CLEARTEXT));
+  assert.ok((snapshot.replaced.password ?? 0) >= 2);
+});
+
+test('without_a_sealed_set_the_unnamed_field_is_left_as_it_was', () => {
+  const snapshot = read(1, 1, BEFORE);
+  assert.equal(snapshot.degraded, false);
+  assert.equal(byBackend(snapshot.root, 27)?.value, UNNAMED);
+  assert.equal(byBackend(snapshot.root, 23)?.value, '[password]');
+});
+
+test('a_sealed_set_seals_a_node_the_name_heuristic_would_have_dropped', () => {
+  const snapshot = read(1, 1, [
+    { nodeId: '1', role: said('RootWebArea'), name: said('A page'), childIds: ['2', '3'] },
+    { nodeId: '2', role: said('generic'), value: said('hunter2'), backendDOMNodeId: 40 },
+    { nodeId: '3', ignored: true, role: said('textbox'), value: said('hunter2'), backendDOMNodeId: 41 },
+  ], undefined, { ids: new Set([40, 41]), degraded: false });
+  assert.equal(snapshot.root.children.length, 2);
+  assert.deepEqual(snapshot.root.children.map((one) => one.value), ['[password]', '[password]']);
+  assert.ok(!JSON.stringify(snapshot).includes('hunter2'));
 });
 
 test('an_ignored_button_is_kept_and_an_ignored_wrapper_is_not', () => {

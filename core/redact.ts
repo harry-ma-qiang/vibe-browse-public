@@ -140,8 +140,9 @@ export function redactUrl(url: unknown): Redacted {
   return { text: out.text, replaced };
 }
 
-/** The four texts a node carries, redacted, beside the counts from all four. */
-export function redactNode(node: CdpAxNode): {
+/** The four texts a node carries, redacted, beside the counts from all four.
+ *  A node named sealed by its caller is emptied whatever its texts say. */
+export function redactNode(node: CdpAxNode, sealed = false): {
   role: string;
   name: string;
   value: string;
@@ -149,7 +150,7 @@ export function redactNode(node: CdpAxNode): {
   replaced: Record<string, number>;
 } {
   const role = node.role?.value ?? 'unknown';
-  if (isPassword(node)) {
+  if (sealed || isPassword(node)) {
     return { role, name: '', value: '[password]', description: '', replaced: { password: 1 } };
   }
   const name = redact(node.name?.value ?? '');

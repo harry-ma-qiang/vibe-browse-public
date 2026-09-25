@@ -46,7 +46,8 @@ after every action, which is what stops a ten-step task decaying step by step.
 | Call | Does |
 |---|---|
 | `attach(tabId, url)` | hold the protocol on one tab; refused on non-http and on blocked hosts |
-| `read(tabId, version, nodes, url?)` | build the tree an agent reads; refused on a blocked host |
+| `read(tabId, version, nodes, url?, sealed?)` | build the tree an agent reads; refused on a blocked host |
+| `sensitive(tabId)` | ask the document which fields hold a secret, by backend node id |
 | `query(root, ask)` | narrow by role, text, depth, or interactive only |
 | `act(tabId, command, nodes)` | click, type, focus, scroll — by node id |
 | `group(tabIds, title, colour)` | put an errand's tabs together |
@@ -78,18 +79,23 @@ on this problem and the criticism was fair; it is fair here too.
   stripe.com · irs.gov · ssa.gov
 
   A list is a thing you can be missing from. It is a floor, not a boundary.
-* **Password fields are detected by heuristic, and the heuristic can miss.**
-  Chrome's accessibility tree carries no `inputType`, no `protected` and no
-  `autocomplete`. Measured on Chrome 153, the only properties emitted were
-  `editable focusable invalid labelledby level multiline readonly required
-  settable url`. So the primary signal is the accessible name and the role: a
-  text-entry role named like a password, a one-time code, a recovery code or an
-  API key yields a marker instead of a value, and its whole subtree stops there.
-  The property checks are kept for engines that do send them.
+* **Password fields are found in the DOM, not in the tree.** Chrome's accessibility
+  tree carries no `inputType`, no `protected` and no `autocomplete`. Measured on
+  Chrome 153, the only properties emitted were `editable focusable invalid
+  labelledby level multiline readonly required settable url`. So the document is
+  asked instead: one `DOM.querySelectorAll` over `input,textarea` and one
+  `Runtime.evaluate`, and every match is sealed by `backendDOMNodeId`.
 
-  What this misses: a password field with no accessible name. While the field is
-  `type=password` Chrome masks the value into bullets, so nothing readable escapes;
-  if the page flips it to `type=text` the cleartext can reach the tree. See
+  A field counts as sensitive on `type=password`, on a computed
+  `-webkit-text-security` other than `none`, on an `autocomplete` naming a password
+  or a one-time code, or on a `name` or `id` that reads like one. The probe runs in
+  the isolated world, so the page cannot rewrite `getComputedStyle` under it. The
+  set is sticky while the tab is attached: a field revealed by a "Show password"
+  toggle stays sealed. The accessible-name heuristic still runs underneath it.
+
+  What this misses: a closed shadow root, a cross-origin iframe, and a secret
+  rendered as plain text with no input element. If the lookup fails the snapshot is
+  still built, from the name heuristic alone, and says so with `degraded: true`. See
   `docs/KNOWN-ISSUES.md`. Do not treat this as a guarantee.
 * **http and https only**, and a URL that will not parse is refused rather than
   assumed safe.

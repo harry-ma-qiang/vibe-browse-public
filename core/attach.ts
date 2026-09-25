@@ -6,6 +6,7 @@
  */
 
 import { readable } from './redact';
+import { forget, WORLD } from './sensitive';
 
 /** How long to wait after a page reports a change. The page waits too, so this is
  *  the second of two. */
@@ -53,11 +54,11 @@ export async function attach(tabId: number, url: string | undefined): Promise<bo
     // why: named to an isolated world, the page cannot call it and cannot forge a change.
     await chrome.debugger.sendCommand({ tabId }, 'Runtime.addBinding', {
       name: 'axChanged',
-      executionContextName: 'axWatcher',
+      executionContextName: WORLD,
     });
     await chrome.debugger.sendCommand({ tabId }, 'Page.addScriptToEvaluateOnNewDocument', {
       source: OBSERVER,
-      worldName: 'axWatcher',
+      worldName: WORLD,
       runImmediately: true,
     });
     return true;
@@ -71,10 +72,12 @@ export async function attach(tabId: number, url: string | undefined): Promise<bo
 /** Forget a tab whose session Chrome already ended, without asking it to end again. */
 export function release(tabId: number): void {
   attached.delete(tabId);
+  forget(tabId);
 }
 
 /** Let go of one tab, whether or not it is still there. */
 export async function detach(tabId: number): Promise<void> {
+  forget(tabId);
   if (!attached.delete(tabId)) return;
   try {
     await chrome.debugger.detach({ tabId });

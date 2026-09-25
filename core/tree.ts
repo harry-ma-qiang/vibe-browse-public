@@ -5,7 +5,7 @@
  * anything a person could act on. What comes out here is the part worth a token.
  */
 
-import type { AxNode, CdpAxNode, Snapshot } from './types';
+import type { AxNode, CdpAxNode, Sealed, Snapshot } from './types';
 import { isPassword, readable, redactNode } from './redact';
 
 /** Roles that describe layout rather than anything a reader could act on. */
@@ -18,6 +18,11 @@ interface Building {
   by: Map<string, CdpAxNode>;
   next: () => number;
   replaced: Record<string, number>;
+  sealed: ReadonlySet<number>;
+}
+
+function shut(node: CdpAxNode, held: Building): boolean {
+  return node.backendDOMNodeId !== undefined && held.sealed.has(node.backendDOMNodeId);
 }
 
 function levelOf(node: CdpAxNode): number | null {
@@ -32,7 +37,7 @@ function tally(held: Building, counts: Record<string, number>): void {
 function build(id: string, held: Building, forced = false): AxNode | null {
   const node = held.by.get(id);
   if (!node) return null;
-  const said = redactNode(node);
+  const said = redactNode(node, shut(node, held));
   const sealed = said.replaced.password !== undefined;
   if (!sealed && !forced && NOISE.has(said.role)) return null;
   tally(held, said.replaced);
@@ -54,9 +59,9 @@ function gather(ids: string[], held: Building): AxNode[] {
     const node = held.by.get(id);
     if (!node) continue;
     // why: a dropped node hands its children up, which is where the secret gets out.
-    if (isPassword(node)) {
-      const shut = build(id, held, true);
-      if (shut) out.push(shut);
+    if (shut(node, held) || isPassword(node)) {
+      const built = build(id, held, true);
+      if (built) out.push(built);
       continue;
     }
     if (!node.ignored) {
@@ -78,15 +83,24 @@ const EMPTY: AxNode = { id: 0, role: 'empty', name: '', value: '', description: 
                         level: null, backendDomNodeId: null, children: [] };
 
 /** One tree as an agent reads it. A page on the blocked list is refused, not built. */
-export function read(tabId: number, version: number, nodes: CdpAxNode[], url?: string): Snapshot {
+export function read(
+  tabId: number,
+  version: number,
+  nodes: CdpAxNode[],
+  url?: string,
+  sealed?: Sealed,
+): Snapshot {
+  const degraded = sealed?.degraded ?? false;
   if (url !== undefined && !readable(url)) {
-    return { tabId, version, root: { ...EMPTY, role: 'refused' }, replaced: { blocked: 1 }, builtAt: Date.now() };
+    return { tabId, version, root: { ...EMPTY, role: 'refused' },
+             replaced: { blocked: 1 }, builtAt: Date.now(), degraded };
   }
   let seq = 0;
   const held: Building = {
     by: new Map(nodes.map((node) => [node.nodeId, node])),
     next: () => ++seq,
     replaced: {},
+    sealed: sealed?.ids ?? new Set<number>(),
   };
   const first = nodes[0];
   const root = first ? build(first.nodeId, held, true) : null;
@@ -96,6 +110,7 @@ export function read(tabId: number, version: number, nodes: CdpAxNode[], url?: s
     root: root ?? { ...EMPTY },
     replaced: held.replaced,
     builtAt: Date.now(),
+    degraded,
   };
 }
 

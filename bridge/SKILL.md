@@ -68,7 +68,7 @@ current window is used.
 | `tabs` | - | `[{tabId, title, url, attached, stale, readable}]` |
 | `attach` | `tabId` | `{ok: true}`, or an error on a blocked or non-http page |
 | `detach` | `tabId` | `{ok: true}` |
-| `snapshot` | `tabId` | `{tabId, version, root, replaced, builtAt}` |
+| `snapshot` | `tabId` | `{tabId, version, root, replaced, builtAt, degraded}` |
 | `query` | `tabId`, `depth`, `roles`, `text`, `interactiveOnly` | `{nodes, matched, total}` |
 | `act` | `tabId`, `command` | `{ok: true}`, or an error saying why not |
 | `group` | `tabIds`, `title`, `colour` | `{groupId}` |
@@ -125,6 +125,8 @@ fields are sealed along with their subtree, and card, national-ID, API-key, sign
 and email shapes are replaced with a marker and counted in `replaced`. Pages on the
 blocked list (banks, password managers, payment services) are never read at all.
 
-The redaction is a heuristic and it can miss. Read `docs/KNOWN-ISSUES.md` for what it
-misses - in particular a password field with no accessible name on a page that has
-revealed it.
+A field is sealed because the document said so - its type, its computed style, its
+autocomplete or its name - with the accessible name as a fallback. It can still miss:
+a closed shadow root, a cross-origin iframe, a secret printed as plain text. If the
+lookup failed, the snapshot says `degraded: true` and only the fallback ran. Read
+`docs/KNOWN-ISSUES.md`.

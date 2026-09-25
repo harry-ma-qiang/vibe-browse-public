@@ -11,6 +11,7 @@ import { act } from './act';
 import { attach, attachedTabs, detach, isAttached } from './attach';
 import { COLOURS, group, groups, ungroup, type Colour } from './groups';
 import { query, type Ask } from './query';
+import { sensitive } from './sensitive';
 import { flatten, read } from './tree';
 
 const DEFAULT_WS_URL = 'ws://127.0.0.1:8765';
@@ -60,7 +61,8 @@ async function build(tabId: number): Promise<Snapshot | { error: string }> {
   const got = (await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree')) as
     | { nodes?: CdpAxNode[] }
     | undefined;
-  const snapshot = read(tabId, (held.get(tabId)?.version ?? 0) + 1, got?.nodes ?? [], tab.url);
+  const sealed = await sensitive(tabId);
+  const snapshot = read(tabId, (held.get(tabId)?.version ?? 0) + 1, got?.nodes ?? [], tab.url, sealed);
   // why: a tree nobody holds a debugger on is a page this is no longer reading.
   for (const id of held.keys()) if (!isAttached(id)) held.delete(id);
   held.set(tabId, snapshot);
