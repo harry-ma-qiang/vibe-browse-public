@@ -1,0 +1,22 @@
+[project]
+name = "vibe-browse-bridge"
+version = "0.1.0"
+description = "A websocket and HTTP bridge between an AI agent and the browser extension"
+requires-python = ">=3.11"
+dependencies = [
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+]
+
+# why: no source yet, so this is a dependency environment and not a distributable
+# package. When the bridge lands, drop this and declare the build backend instead.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
