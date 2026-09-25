@@ -21,6 +21,7 @@ const WORDS = [
   'passphrase',
   'passwd',
   'password',
+  'pwd',
   'otp',
   'secret',
   'token',

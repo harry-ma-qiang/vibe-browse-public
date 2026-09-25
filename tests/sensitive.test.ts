@@ -131,6 +131,7 @@ test('the_name_is_matched_by_whole_word_and_not_by_substring', () => {
   const sealed = [
     'password',
     'passwd',
+    'pwd',
     'otp',
     'secret',
     'token',
@@ -140,7 +141,8 @@ test('the_name_is_matched_by_whole_word_and_not_by_substring', () => {
     'pin',
     'ssn',
   ];
-  const open = ['shipping', 'passenger', 'tokenizer', 'spinner', 'campaign', 'postcode', 'coupon'];
+  const open = ['shipping', 'passenger', 'tokenizer', 'spinner', 'campaign', 'postcode', 'coupon',
+                'nickname', 'username'];
   assert.deepEqual(marks(sealed.map(input)), sealed);
   assert.deepEqual(marks(open.map(input)), []);
 });

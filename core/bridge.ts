@@ -16,7 +16,7 @@ import { COLOURS, group, groups, ungroup, type Colour } from './groups';
 import { query, type Ask } from './query';
 import { sensitive } from './sensitive';
 import { flatten, read } from './tree';
-import { settled, stale } from './watched';
+import { invalidate, settled, stale } from './watched';
 
 const DEFAULT_WS_URL = 'ws://127.0.0.1:8765';
 
@@ -116,7 +116,8 @@ function wanted(msg: Msg): [number, ...number[]] | null {
   return first === undefined ? null : [first, ...rest];
 }
 
-async function executeAction(msg: Msg): Promise<Result> {
+/** Carry out one command, as it would arrive over the socket, and answer it. */
+export async function executeAction(msg: Msg): Promise<Result> {
   const action = String(msg.action ?? '');
   let tid = 0;
   if (NEEDS_TAB.has(action)) {
@@ -163,6 +164,7 @@ async function executeAction(msg: Msg): Promise<Result> {
       const snapshot = await standing(tid);
       if ('error' in snapshot) return { ok: false, error: snapshot.error };
       const done = await act(tid, command, flatten(snapshot.root));
+      if (done.ok && command.action === 'setValue') invalidate(tid);
       return done.ok ? { ok: true, data: done } : { ok: false, error: done.error ?? 'refused' };
     }
 

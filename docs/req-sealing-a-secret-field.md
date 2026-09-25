@@ -29,7 +29,7 @@ The elements are asked for one at a time rather than joined to a second
 **Given** a field that is `type=password`, or has a computed `-webkit-text-security`
 other than `none`, or an `autocomplete` containing `password` or equal to
 `one-time-code`, or a `name` or `id` holding one of
-`pass passcode passphrase passwd password otp secret token recovery cvv cvc pin ssn`
+`pass passcode passphrase passwd password pwd otp secret token recovery cvv cvc pin ssn`
 **When** the probe runs
 **Then** the field is named as sensitive, and the one `Runtime.evaluate` runs in an
 isolated world the page cannot reach or rewrite
@@ -45,7 +45,7 @@ only where it is run, not what it decides.
 **When** the probe reads it
 **Then** each part is compared whole, so `password`, `new-password`, `user_otp`, `cvv2`
 and `accountSsn` are sealed and `shipping`, `passenger`, `tokenizer`, `spinner`,
-`campaign`, `postcode` and `coupon` are left alone
+`campaign`, `postcode`, `coupon`, `nickname` and `username` are left alone
 
 Settled by: `the_name_is_matched_by_whole_word_and_not_by_substring`
 and `a_name_split_on_a_dash_an_underscore_a_digit_or_a_case_is_one_word`

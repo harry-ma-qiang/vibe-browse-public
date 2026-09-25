@@ -8,9 +8,9 @@ memory. Chrome stops the worker when it is idle, and the tree goes with it. The 
 holding from before the stop.
 
 An `act` against a moved id is refused rather than carried out — the node is re-read
-and its role and name are compared first — so the failure is loud. But an agent that
-kept a list of ids across an idle period finds them naming other elements, with no
-event to say the tree it was holding is gone.
+and its role and its backend node id are compared first — so the failure is loud. But
+an agent that kept a list of ids across an idle period finds them naming other
+elements, with no event to say the tree it was holding is gone.
 
 ## What should happen
 

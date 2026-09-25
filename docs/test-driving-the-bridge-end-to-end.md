@@ -69,7 +69,7 @@ screen, then snapshot. The output carries:
 
 ## The build carries the code this depends on
 
-The built `background.js` is 29,072 bytes and contains `getFullAXTree` once,
+The built `background.js` is 29,161 bytes and contains `getFullAXTree` once,
 `querySelectorAll` twice, `shadowRoot` twice, `webkitTextSecurity` twice,
 `createIsolatedWorld` once, `DOM.requestNode` once, `bearer.` once, `bridgeToken` once
 and `[password]` once. Measured from `npm run build`, not from the browser run, so it

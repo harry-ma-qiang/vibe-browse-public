@@ -90,7 +90,10 @@ current window is used.
 
 `snapshot` attaches the tab first if it is not attached already, then builds the tree.
 `query` and `act` work on the snapshot last built for that tab, building one if there
-is none and rebuilding it if the page has changed since. Every `query` argument
+is none and rebuilding it if the page has changed since, or if a `setValue` typed into
+it. What a `click` set off is caught only once the page reports the change it made, so
+a `query` sent straight after one can still answer from the old tree; re-read with
+`snapshot` when the answer has to be the page as it is now. Every `query` argument
 narrows, and all of them are optional. Both `snapshot` and `query` carry `degraded`,
 which is true when the document could not be asked which fields hold a secret.
 
@@ -104,7 +107,9 @@ The four commands `act` carries out:
 ```
 
 A `nodeId` names a node of the snapshot you are holding. It is re-read before it is
-used, so a command against something that has changed is refused rather than guessed.
+used, and its role and its handle on the element are compared with the ones the tree
+carried, so a command against something that has changed is refused rather than
+guessed.
 
 ## Typical run
 

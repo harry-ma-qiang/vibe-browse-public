@@ -30,7 +30,7 @@ Settled by: `a_blocked_host_is_refused_at_attach_without_touching_the_protocol`
 and `a_blocked_host_is_refused_before_any_tree_is_built`
 
 An attached tab that navigates onto the list is also detached, in the `onUpdated`
-listener at `entrypoints/background.ts:101-106`. Nothing settles that: no test in
+listener at `entrypoints/background.ts:104-112`. Nothing settles that: no test in
 `tests/` reaches a listener registered inside `defineBackground`. It has been driven by
 hand only, as part of `docs/test-driving-the-bridge-end-to-end.md`.
 
@@ -58,3 +58,19 @@ that `read()` carries out the version it was given.
 There is one staleness and not two. `core/watched.ts` keeps it; the background writes
 it on navigation and on the page's own change binding, and `standing()` in
 `core/bridge.ts` reads it before handing out a tree it built earlier.
+
+## A value the agent typed makes the tree it typed into old
+
+**Given** a tree already built for a tab, and a `setValue` carried out against one of
+its nodes
+**When** the next `query` is answered
+**Then** the page is read again rather than answered from the tree the value is missing
+from
+
+Settled by: `a_value_the_agent_typed_marks_the_tree_it_was_typed_into_stale`
+and `a_command_that_changes_no_value_leaves_the_tree_alone`
+
+The page's own change binding does not carry this. `Input.insertText` writes the
+`value` property, which is not an attribute, not a child and not character data, so the
+observer in `core/attach.ts` sees nothing. The bridge marks the tab itself, in the `act`
+branch of `executeAction`, and only for a command that sets a value.

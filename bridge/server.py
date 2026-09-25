@@ -47,6 +47,9 @@ TOKEN_FILE = Path(os.environ.get("VIBE_BROWSE_TOKEN_FILE", Path.home() / ".vibe-
 #: How long a command may take before the caller is told the extension did not answer.
 TIMEOUT = 30.0
 
+#: The shortest stored secret served. An empty file would make every comparison true.
+SHORTEST_TOKEN = 32
+
 #: The websocket subprotocol the extension offers, carrying the secret the HTTP side wants.
 BEARER = "bearer."
 
@@ -58,9 +61,19 @@ _waiting: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
 
 def token() -> str:
-    """The shared secret, made on first use and kept at 0600 for its owner alone."""
+    """The shared secret, made on first use and kept at 0600 for its owner alone.
+
+    A stored secret shorter than `SHORTEST_TOKEN` is refused rather than served. An
+    empty file would otherwise make `hmac.compare_digest` true for an empty bearer.
+    """
     if TOKEN_FILE.exists():
-        return TOKEN_FILE.read_text().strip()
+        held = TOKEN_FILE.read_text().strip()
+        if len(held) < SHORTEST_TOKEN:
+            raise SystemExit(
+                f"the token in {TOKEN_FILE} is {len(held)} characters, and "
+                f"{SHORTEST_TOKEN} is the fewest served. Delete it and start again."
+            )
+        return held
     made = secrets.token_urlsafe(32)
     TOKEN_FILE.touch(mode=0o600)
     TOKEN_FILE.write_text(made)

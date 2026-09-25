@@ -116,8 +116,12 @@ on this problem and the criticism was fair; it is fair here too.
   tree carries no `inputType`, no `protected` and no `autocomplete`. Measured on
   Chrome 153, the only properties emitted were `editable focusable invalid
   labelledby level multiline readonly required settable url`. So the document is
-  asked instead: one `DOM.querySelectorAll` over `input,textarea` and one
-  `Runtime.evaluate`, and every match is sealed by `backendDOMNodeId`.
+  asked instead: one `Runtime.evaluate` in an isolated world, whose probe runs
+  `querySelectorAll('input,textarea')` itself and hands back the matching elements,
+  and then one `DOM.requestNode` and one `DOM.describeNode` per element to turn it
+  into the `backendDOMNodeId` the tree is sealed by. The matches are not joined to a
+  `DOM.querySelectorAll` by position, because the probe reaches nodes that call does
+  not; see `docs/req-sealing-a-secret-field.md`.
 
   A field counts as sensitive on `type=password`, on a computed
   `-webkit-text-security` other than `none`, on an `autocomplete` naming a password
@@ -147,7 +151,11 @@ on this problem and the criticism was fair; it is fair here too.
   domain that reads a request or a stored value is enabled at all.
   A smaller surface, not a boundary.
 * **A control is re-read before it is used.** Ids name a place in a tree you already
-  read; pages move. A command against something that changed is refused.
+  read; pages move. The node behind the id is fetched again and its role and its
+  `backendDOMNodeId` are compared with the ones the tree carried, so a node that is
+  gone, that now names another element, or that changed role is refused. The
+  accessible name is not compared: a sealed field's name is emptied in the tree and
+  not on the page, and comparing the two refused every command against it.
 * **The page watcher runs in an isolated world**, so a page cannot silence it or
   forge a change.
 
@@ -155,8 +163,8 @@ The whole chain — bridge, extension, protocol, live page — has been driven b
 Chrome 153, with both password fields flipped to cleartext and neither value reaching
 the snapshot. That run is written down as
 `docs/test-driving-the-bridge-end-to-end.md`, so a person can repeat it. It is a hand
-run, not an automated test: the suite covers `read()`, `query()`, `sensitive()` and
-the redaction, called directly.
+run, not an automated test: the suite covers `read()`, `query()`, `sensitive()`,
+`act()` and the redaction, called directly, against a stand-in for the protocol.
 
 Not a proof. A smaller blast radius, and an honest account of the edges. What is
 still open, and not fixed, is written as `bug` records in `docs/`.

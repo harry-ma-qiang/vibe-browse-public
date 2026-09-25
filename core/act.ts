@@ -9,7 +9,6 @@
  */
 
 import type { AgentCommand, AxNode, CdpAxNode, CommandResult } from './types';
-import { redactNode } from './redact';
 
 interface Box {
   x: number;
@@ -59,8 +58,8 @@ async function stillIs(tabId: number, backendNodeId: number, was: AxNode): Promi
   })) as { nodes?: CdpAxNode[] } | undefined;
   const now = held?.nodes?.[0];
   if (!now) return false;
-  const said = redactNode(now);
-  return said.role === was.role && said.name === was.name;
+  if ((now.backendDOMNodeId ?? backendNodeId) !== was.backendDomNodeId) return false;
+  return (now.role?.value ?? 'unknown') === was.role;
 }
 
 const WHEEL = {
@@ -84,7 +83,7 @@ export async function act(
   try {
     // why: an id names a place in a tree already read, and pages move.
     if (!(await stillIs(tabId, backendNodeId, node))) {
-      return { ok: false, error: `node ${command.nodeId} is no longer ${node.role} "${node.name}"` };
+      return { ok: false, error: `node ${command.nodeId} is no longer the ${node.role} it named` };
     }
     if (command.action === 'focus') {
       await send(tabId, 'DOM.focus', { backendNodeId });
