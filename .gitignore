@@ -109,3 +109,8 @@ AGENTS.md
 tmp/
 .tmp/
 *.local
+.tests-build/
+.specs/
+PLAN.md
+*.har
+*.png

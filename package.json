@@ -1,7 +1,6 @@
 {
   "name": "vibe-browse",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Chrome's accessibility tree as a tool-call interface for AI agents",
   "scripts": {
@@ -9,8 +8,10 @@
     "build": "wxt build",
     "zip": "wxt zip",
     "type-check": "tsc --noEmit",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.tests-build && node --test .tests-build/*.test.js",
+    "lint": "eslint core entrypoints utils tests --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "postinstall": "wxt prepare"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -20,11 +21,17 @@
     "@types/chrome": "^0.1.37",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "@wxt-dev/module-react": "^1.1.0",
+    "autoprefixer": "^10.4.20",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
+    "postcss": "^8.4.41",
     "prettier": "^3.3.3",
+    "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
     "wxt": "^0.19.0"
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }
