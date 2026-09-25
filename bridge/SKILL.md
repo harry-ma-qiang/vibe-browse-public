@@ -129,9 +129,10 @@ Re-read after acting. A tree is cheap; a stale one is not.
 
 ## What the bridge refuses
 
-- An HTTP request carrying an `Origin` header is refused with 403, by design. A page
+- A `POST /command` carrying an `Origin` header is refused with 403, by design. A page
   cannot set that header, so a request that has one came from a page, and no page has
-  business driving a debugger.
+  business driving a debugger. `GET /health` is matched before that check and answers
+  either way, so a page can learn the bridge is running, and nothing else.
 - On the websocket the rule has to differ: a browser must send `Origin`, and the
   extension's own `chrome-extension://<id>` arrives on every dial. So what is refused
   there with 403 is a **page** origin — anything that is not `chrome-extension://`,
