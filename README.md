@@ -92,79 +92,54 @@ need to reload it. Replacing the token file means pasting the new value the same
 It holds a debugger on a browser you are signed into. Meta shipped Muse with a team
 on this problem and the criticism was fair; it is fair here too.
 
-* **The panel attaches one tab at a time, and the bridge can attach any tab.** The
-  panel offers the tab you are already looking at, and nothing else. That is the limit
-  on what *you* can attach by clicking; it is not a limit on the extension. Whoever
-  holds the bridge token can send `{"action":"attach","tabId":N}` for any tab id, and
-  a `snapshot` sent with no `tabId` attaches the active tab without being asked
-  (`core/bridge.ts`, `tabOf` and `build`). So the true boundary is the token and the
-  blocked list, not the panel. Stop the bridge when an agent is not using it; see
-  `docs/bug-the-token-is-the-only-consent.md`.
-* **A list of sites it will not read at all.** Banks, password managers, payment
-  services, the IRS and the SSA. A subdomain of one of these is one of these. It is
-  checked in three places: before attaching, on every navigation of an attached tab
-  (which detaches it), and before a tree is built. An unparseable or empty URL is
-  treated as blocked. The list is exported as `BLOCKED` in `core/redact.ts`:
+So say the rest plainly. This is a serious security problem and nobody has solved it,
+this project least of all. The DevTools Protocol was built for debuggers and the
+accessibility tree for assistive technology. Neither was built to stand between a
+signed-in browser and software acting on its own. There is no permission prompt in
+them, no per-action consent, no notion of a page the reader ought not to have. Muse
+rests on this. Chrome's own agent work rests on this. browser-use and every open
+agent rests on this. The idea is not secret and the substrate is not secure. What
+differs between them is only how much is handed over by default, and how honestly
+that is written down.
 
-  chase.com · bankofamerica.com · wellsfargo.com · citi.com · capitalone.com ·
-  usbank.com · 1password.com · lastpass.com · bitwarden.com · dashlane.com ·
-  keeper.io · nordpass.com · paypal.com · venmo.com · cash.app · zelle.com ·
-  stripe.com · irs.gov · ssa.gov
+What this one does, none of it a boundary:
 
-  A list is a thing you can be missing from. It is a floor, not a boundary.
-* **Password fields are found in the DOM, not in the tree.** Chrome's accessibility
-  tree carries no `inputType`, no `protected` and no `autocomplete`. Measured on
-  Chrome 153, the only properties emitted were `editable focusable invalid
-  labelledby level multiline readonly required settable url`. So the document is
-  asked instead: one `Runtime.evaluate` in an isolated world, whose probe runs
-  `querySelectorAll('input,textarea')` itself and hands back the matching elements,
-  and then one `DOM.requestNode` and one `DOM.describeNode` per element to turn it
-  into the `backendDOMNodeId` the tree is sealed by. The matches are not joined to a
-  `DOM.querySelectorAll` by position, because the probe reaches nodes that call does
-  not; see `docs/req-sealing-a-secret-field.md`.
+* **A blocked list, checked three times** — at attach, on every navigation of an
+  attached tab, and before a tree is built. Banks, password managers, payment, tax.
+  An unparseable URL is blocked. Exported as `BLOCKED` in `core/redact.ts`.
+  A list is a thing you can be missing from.
+* **Password fields found in the DOM, not in the tree.** Chrome's accessibility tree
+  carries no `inputType`, no `protected` and no `autocomplete` — measured, on Chrome
+  153 — so the document is asked instead and the tree is sealed by
+  `backendDOMNodeId`. The set is sticky while the tab is attached, so a field
+  revealed by a "Show password" toggle stays sealed. Open shadow roots are walked;
+  closed ones cannot be. See `docs/req-sealing-a-secret-field.md`.
+* **Shapes replaced and counted** — cards, national ID, API keys, signed tokens.
+  A pattern is not a promise.
+* **Four protocol domains**, none that reads a request or a stored value.
+* **A control is re-read before it is used**, by role and by handle.
+* **http and https only**, and the page watcher runs in an isolated world.
 
-  A field counts as sensitive on `type=password`, on a computed
-  `-webkit-text-security` other than `none`, on an `autocomplete` naming a password
-  or a one-time code, or on a `name` or `id` that reads like one. The name is matched
-  a whole word at a time, splitting on `-`, `_`, digits and camelCase, so `password`
-  and `cvv2` seal and `shipping`, `passenger` and `tokenizer` do not. The probe runs
-  in the isolated world, so the page cannot rewrite `getComputedStyle` under it. The
-  set is sticky while the tab is attached: a field revealed by a "Show password"
-  toggle stays sealed. The accessible-name heuristic still runs underneath it.
+And the part that is not a defence at all: **the token is the whole of the consent.**
+Whoever holds it can attach any tab. Stop the bridge when nothing is using it.
+See `docs/bug-the-token-is-the-only-consent.md`.
 
-  The probe walks **open** shadow roots, recursing through every `shadowRoot` it can
-  reach and resolving each match back to a `backendDOMNodeId`. What this misses: a
-  **closed** shadow root, which hands out no reference to follow; a cross-origin
-  iframe; and a secret rendered as plain text with no input element. If the lookup
-  fails the snapshot is still built, from the name heuristic alone, and says so with
-  `degraded: true`. See `docs/bug-a-secret-with-no-input-element.md`. Do not treat
-  this as a guarantee.
-* **http and https only**, and a URL that will not parse is refused rather than
-  assumed safe.
-* **Shapes are replaced and counted**: cards, national ID, API keys, signed tokens.
-  A pattern is not a promise. A secret with no shape is not caught, and one split
-  across two nodes is not caught. The counts are returned so a caller can see what
-  was found.
-* **Four protocol domains**: Accessibility, DOM, Page, Runtime. Runtime is enabled
-  because the change binding needs it, and enabling it means `consoleAPICalled` and
-  `exceptionThrown` do arrive. Nothing reads them, and nothing stores them. No
-  domain that reads a request or a stored value is enabled at all.
-  A smaller surface, not a boundary.
-* **A control is re-read before it is used.** Ids name a place in a tree you already
-  read; pages move. The node behind the id is fetched again and its role and its
-  `backendDOMNodeId` are compared with the ones the tree carried, so a node that is
-  gone, that now names another element, or that changed role is refused. The
-  accessible name is not compared: a sealed field's name is emptied in the tree and
-  not on the page, and comparing the two refused every command against it.
-* **The page watcher runs in an isolated world**, so a page cannot silence it or
-  forge a change.
+Where this project stands. Meta shipped first and answered for the security
+afterwards; that order was wrong, and saying so is part of why this exists. Google
+has moved slower on the same capability and has pushed toward a surface a site opts
+into and can refuse, rather than a debugger that takes the page whole. That is the
+more conservative road, it is less capable today, and it is the right one. A
+debugger-driven agent should be the fallback nobody is proud of, not the destination.
 
-The whole chain — bridge, extension, protocol, live page — has been driven by hand on
-Chrome 153, with both password fields flipped to cleartext and neither value reaching
-the snapshot. That run is written down as
-`docs/test-driving-the-bridge-end-to-end.md`, so a person can repeat it. It is a hand
-run, not an automated test: the suite covers `read()`, `query()`, `sensitive()`,
-`act()` and the redaction, called directly, against a stand-in for the protocol.
+So use this with cause. Attach the tab you mean, stop the bridge when you are done,
+and point it at nothing you would not hand to a stranger. And if you are shipping
+this capability to other people, say what it cannot protect before you say what it
+can. That is the whole of the disagreement.
+
+The whole chain has been driven by hand on Chrome 153, with both password fields
+flipped to cleartext and neither value reaching the snapshot. That run is written
+down as `docs/test-driving-the-bridge-end-to-end.md` so a person can repeat it. It is
+a hand run, not an automated test.
 
 Not a proof. A smaller blast radius, and an honest account of the edges. What is
 still open, and not fixed, is written as `bug` records in `docs/`.
