@@ -1,0 +1,111 @@
+# --- secrets: nothing here ever, and the broadest patterns first ---
+.env
+.env.*
+!.env.example
+*.env
+*.env.sh
+*.key
+*.pem
+*.p12
+*.pfx
+*.token
+*.credentials
+credentials*
+secrets/
+.secrets/
+service-account*.json
+client_secret*.json
+*.keystore
+
+# --- node ---
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/versions
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.eslintcache
+*.tsbuildinfo
+
+# --- build output ---
+dist/
+build/
+out/
+.output/
+.wxt/
+.vite/
+coverage/
+*.zip
+*.crx
+*.pem.pub
+
+# --- python / uv ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.uv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- macOS ---
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+Icon?
+
+# --- Windows ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# --- Linux ---
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# --- editors ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# --- agent and assistant files, deliberately not shipped ---
+CLAUDE.md
+AGENTS.md
+.claude/
+.cursor/
+.aider*
+
+# --- local scratch ---
+tmp/
+.tmp/
+*.local
