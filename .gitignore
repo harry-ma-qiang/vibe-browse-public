@@ -114,3 +114,6 @@ tmp/
 PLAN.md
 *.har
 *.png
+
+# the one screenshot the readme shows
+!docs/panel.png

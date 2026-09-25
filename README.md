@@ -24,6 +24,13 @@ The agent never sees the page. It sees a list of lines, each one element:
 
 It answers with `{"action":"click","nodeId":12}`.
 
+![The side panel beside a page of fields, some of which never reach the agent](docs/panel.png)
+
+The panel on the right is the whole interface: a row per tab, attach or detach, and
+whether the bridge is up. On the left is the page used to test it — everything under
+*must be sealed* reaches the agent as `[password]`, everything above it reaches the
+agent as itself.
+
 ## Why this is faster
 
 A screenshot is thousands of image tokens and still has to be guessed at. The same
