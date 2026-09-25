@@ -33,15 +33,22 @@ agent as itself.
 
 ## Why this is faster
 
-A screenshot is thousands of image tokens and still has to be guessed at. The same
-page as a filtered tree is a few hundred tokens of text, each line naming what the
-element is and how to reach it.
+A screenshot costs image tokens and still has to be guessed at. The same page as a
+filtered tree is a few hundred tokens of text, each line naming what the element is
+and how to reach it.
+
+Measured on `tests/fixtures/ax-before.json`, a sign-in page of 42 nodes, 9 of them
+interactive. Rebuild these numbers with `read()` and `query()` on that file.
 
 | | per look |
 |---|---|
-| screenshot | ~1,500 image tokens, positions inferred |
-| whole tree | ~3,000 text tokens |
-| tree, interactive only | **~200 text tokens, ids exact** |
+| screenshot, 1440x900 | ~1,700 image tokens, positions inferred |
+| whole tree | ~1,000 text tokens |
+| tree, interactive only | **~280 text tokens, ids exact** |
+
+About six times cheaper than the screenshot on this page, not the orders of magnitude
+the pitch for this kind of thing usually claims. The ratio moves with the page: a form
+heavy in controls narrows it, a wall of prose widens it.
 
 There is no coordinate to get wrong, so a click lands on the element the agent named
 or is refused. And a tree is cheap enough to re-read after every action, which is what
@@ -137,10 +144,9 @@ not fixed, is written as `bug` records in `docs/`.
 
 ## What it deliberately does not do
 
-No screenshots — a picture would undercut the argument above and cost four orders of
-magnitude more per look. No bookmarks, one permission more than this is worth. No
-audio or video capture. No console or network inspection: that is a debugger, and this
-is not one.
+No screenshots — a picture costs several times more per look and undercuts the argument
+above. No bookmarks, one permission more than this is worth. No audio or video capture.
+No console or network inspection: that is a debugger, and this is not one.
 
 ## Status
 
