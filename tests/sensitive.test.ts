@@ -1,3 +1,6 @@
+// Copyright (C) 2026 harry-ma-qiang
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * What the sensitive-field lookup is held to, run against a stand-in for the protocol.
  *

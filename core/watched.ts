@@ -1,3 +1,6 @@
+// Copyright (C) 2026 harry-ma-qiang
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Which tabs are being watched, and whether the tree last built still describes one.
  *

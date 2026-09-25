@@ -1,3 +1,6 @@
+// Copyright (C) 2026 harry-ma-qiang
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * The socket an agent outside the browser speaks through, and the whole of it.
  *

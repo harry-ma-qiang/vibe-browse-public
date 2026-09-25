@@ -1,3 +1,6 @@
+// Copyright (C) 2026 harry-ma-qiang
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Taking out of a tree what a reader outside the browser has no business holding.
  *

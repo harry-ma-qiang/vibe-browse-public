@@ -1,3 +1,6 @@
+// Copyright (C) 2026 harry-ma-qiang
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * What the panel and the background say to each other, and the whole of it.
  *

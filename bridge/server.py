@@ -1,3 +1,6 @@
+# Copyright (C) 2026 harry-ma-qiang
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The one process between an agent and the extension, and the whole of what it does.
 
     uv run server.py                    listen, print the token, wait
